@@ -1,0 +1,3 @@
+/* Import Tailwind CSS — this single line loads all of Tailwind's utility classes */
+/* Instead of writing custom CSS, we use class names like "bg-blue-500", "text-white", etc. */
+@import "tailwindcss";
