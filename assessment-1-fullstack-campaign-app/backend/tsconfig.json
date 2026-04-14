@@ -1,44 +1,38 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
+  // TypeScript compiler configuration for the backend
   "compilerOptions": {
-    // File Layout
-    // "rootDir": "./src",
-    // "outDir": "./dist",
-
-    // Environment Settings
-    // See also https://aka.ms/tsconfig/module
-    "module": "nodenext",
-    "target": "esnext",
-    "types": [],
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
-
-    // Other Outputs
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-
-    // Stricter Typechecking Options
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-
-    // Style Options
-    // "noImplicitReturns": true,
-    // "noImplicitOverride": true,
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noPropertyAccessFromIndexSignature": true,
-
-    // Recommended Options
+    // Output modern JavaScript that Node.js 18+ supports
+    "target": "ES2020",
+    // Use CommonJS modules — the standard format for Node.js
+    "module": "commonjs",
+    // Include ES2020 built-in type definitions
+    "lib": [
+      "ES2020"
+    ],
+    // Compiled JS files go here (we run from src using ts-node in dev)
+    "outDir": "./dist",
+    // All source TypeScript files live here
+    "rootDir": "./src",
+    // Enable strict type checking — catches more bugs at compile time
     "strict": true,
-    "jsx": "react-jsx",
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
-    "moduleDetection": "force",
+    // Allows default imports from packages that don't natively support them
+    "esModuleInterop": true,
+    // Skip type-checking node_modules (faster builds)
     "skipLibCheck": true,
-  }
+    // Prevents issues with inconsistent file name casing across OS
+    "forceConsistentCasingInFileNames": true,
+    // Lets us import .json files directly (needed for seed_campaigns.json)
+    "resolveJsonModule": true,
+    // Generate .d.ts type declaration files alongside compiled output
+    "declaration": true
+  },
+  // Only compile files inside src/
+  "include": [
+    "src/**/*"
+  ],
+  // Don't touch these folders
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
