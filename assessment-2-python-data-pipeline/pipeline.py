@@ -624,6 +624,11 @@ ROLE_RULES = [
         'band': 'Head',
         'score': 84,
     },
+    {
+        'keyword': 'head of marketing automation',
+        'band': 'Functional Head',
+        'score': 72,
+    },
     {'keyword': 'head of marketing', 'band': 'Head', 'score': 83},
     {
         'keyword': 'marketing and communications director',
@@ -649,11 +654,6 @@ ROLE_RULES = [
         'keyword': 'director marketing operations',
         'band': 'Functional Director',
         'score': 73,
-    },
-    {
-        'keyword': 'head of marketing automation',
-        'band': 'Functional Head',
-        'score': 72,
     },
 ]
 
