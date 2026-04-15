@@ -10,13 +10,9 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Campaign, Event } from '../types';
-
-// Represents a campaign with its events attached
-interface CampaignWithEvents extends Campaign {
-    events: Event[];
-}
+// CampaignWithEvents is already defined in types.ts — importing it from there
+// instead of redefining it here keeps types in a single source of truth
+import { Campaign, Event, CampaignWithEvents } from '../types';
 
 function CampaignList() {
     // ── State ─────────────────────────────────────────────────
@@ -136,18 +132,6 @@ function CampaignList() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Page header with navigation */}
-            <header className="bg-white shadow-sm border-b">
-                <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-gray-800">Campaign Manager</h1>
-                    <Link
-                        to="/submissions"
-                        className="text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                        View Submissions →
-                    </Link>
-                </div>
-            </header>
 
             {/* Campaign cards */}
             <main className="max-w-6xl mx-auto px-6 py-8">
@@ -169,8 +153,8 @@ function CampaignList() {
                                     {/* Status badge */}
                                     <span
                                         className={`px-3 py-1 rounded-full text-sm font-medium ${campaign.status === 'active'
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-yellow-100 text-yellow-700'
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-yellow-100 text-yellow-700'
                                             }`}
                                     >
                                         {campaign.status}
@@ -240,8 +224,8 @@ function CampaignList() {
                                     {sendStatus && (
                                         <p
                                             className={`mt-3 text-sm ${sendStatus.type === 'success'
-                                                    ? 'text-green-600'
-                                                    : 'text-red-600'
+                                                ? 'text-green-600'
+                                                : 'text-red-600'
                                                 }`}
                                         >
                                             {sendStatus.message}

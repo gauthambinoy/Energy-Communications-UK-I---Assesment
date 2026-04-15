@@ -20,6 +20,13 @@ import { Campaign } from '../types';
 import { sendCampaignEmail } from '../services/email';
 import { isValidEmail, isBlank } from '../utils';
 
+// Strips any HTML tags from a user-supplied string.
+// This prevents stored XSS — if data is ever rendered in a browser,
+// tags like <script> won't execute because they were removed at input time.
+function sanitise(value: string): string {
+  return value.trim().replace(/<[^>]*>/g, '');
+}
+
 const router = Router();
 
 /**
@@ -114,7 +121,10 @@ router.post('/landing/:slug/submit', (req: Request, res: Response) => {
       VALUES (?, ?, ?, ?, ?)
     `);
 
-    stmt.run(campaign.id, firstName.trim(), lastName.trim(), email.trim(), company.trim());
+    // sanitise() strips HTML tags in addition to trimming whitespace.
+    // This prevents malicious input like <script>alert('xss')</script> from
+    // being stored in the database and potentially executed later.
+    stmt.run(campaign.id, sanitise(firstName), sanitise(lastName), email.trim(), sanitise(company));
 
     res.status(201).json({ message: 'Submission received — thank you!' });
   } catch (error) {

@@ -163,7 +163,7 @@ function LandingPage() {
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
                                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="John"
+                                placeholder="Alexandra"
                             />
                         </div>
                         <div>
@@ -175,7 +175,7 @@ function LandingPage() {
                                 value={lastName}
                                 onChange={(e) => setLastName(e.target.value)}
                                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Doe"
+                                placeholder="Hartwell"
                             />
                         </div>
                     </div>
@@ -189,7 +189,7 @@ function LandingPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="john.doe@company.com"
+                            placeholder="alexandra@blackstone.com"
                         />
                     </div>
 
@@ -202,7 +202,7 @@ function LandingPage() {
                             value={company}
                             onChange={(e) => setCompany(e.target.value)}
                             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Acme Inc."
+                            placeholder="Blackstone Group"
                         />
                     </div>
 

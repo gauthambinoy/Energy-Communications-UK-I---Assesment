@@ -1,33 +1,49 @@
 // ============================================================
 // App Component — Root of the Frontend
-// Sets up client-side routing between the three pages:
+// Sets up client-side routing between all pages.
+// Includes a catch-all 404 route for unknown URLs.
+//
+// Routes:
 //   /                  → Campaign List (homepage)
 //   /landing/:slug     → Landing Page (from email link)
 //   /submissions       → Submissions Dashboard
-//
-// React Router handles navigation without full page reloads,
-// making the app feel fast and smooth like a native application.
+//   *                  → 404 Not Found (catch-all)
 // ============================================================
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import Navbar from './components/Navbar';
 import CampaignList from './pages/CampaignList';
 import LandingPage from './pages/LandingPage';
 import Submissions from './pages/Submissions';
+import NotFound from './pages/NotFound';
+
+// Wrapper that conditionally shows the Navbar
+// We hide it on landing pages because those are public-facing
+// and shouldn't show internal navigation
+function AppLayout() {
+  const location = useLocation();
+
+  // Don't show navbar on landing pages (those are for external recipients)
+  const isLandingPage = location.pathname.startsWith('/landing');
+
+  return (
+    <>
+      {!isLandingPage && <Navbar />}
+      <Routes>
+        <Route path="/" element={<CampaignList />} />
+        <Route path="/landing/:slug" element={<LandingPage />} />
+        <Route path="/submissions" element={<Submissions />} />
+        {/* Catch-all route — any unknown URL shows the 404 page */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
+  );
+}
 
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Homepage — shows all campaigns with send email buttons */}
-        <Route path="/" element={<CampaignList />} />
-
-        {/* Landing page — the page recipients see after clicking the email link */}
-        {/* :slug is a dynamic parameter, e.g. /landing/summer-brand-awareness */}
-        <Route path="/landing/:slug" element={<LandingPage />} />
-
-        {/* Dashboard — view all submissions and export as CSV */}
-        <Route path="/submissions" element={<Submissions />} />
-      </Routes>
+      <AppLayout />
     </BrowserRouter>
   );
 }

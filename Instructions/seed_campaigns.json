@@ -1,0 +1,111 @@
+{
+  "campaigns": [
+    {
+      "id": 1,
+      "name": "Summer Brand Awareness 2025",
+      "slug": "summer-brand-awareness",
+      "description": "A seasonal awareness push targeting consumers across Ireland and the UK. Focus on brand recall and top-of-funnel engagement.",
+      "email_subject": "Discover What's New This Summer ☀️",
+      "cta_text": "Explore the Campaign",
+      "status": "active",
+      "platform": "Meta",
+      "budget_usd": 12000,
+      "created_at": "2025-05-01"
+    },
+    {
+      "id": 2,
+      "name": "Q3 Enterprise Product Launch",
+      "slug": "q3-enterprise-launch",
+      "description": "Targeted outreach to enterprise decision-makers for the launch of a new B2B SaaS product suite. High-intent audience, gated content strategy.",
+      "email_subject": "You're Invited: Exclusive Product Launch Event",
+      "cta_text": "Register Your Interest",
+      "status": "active",
+      "platform": "LinkedIn",
+      "budget_usd": 25000,
+      "created_at": "2025-06-15"
+    },
+    {
+      "id": 3,
+      "name": "Holiday Season Promo 2025",
+      "slug": "holiday-promo-2025",
+      "description": "End-of-year promotional campaign targeting existing customers and warm leads. Incentivised offer with limited-time discount.",
+      "email_subject": "A Special Gift for You This Holiday Season 🎁",
+      "cta_text": "Claim Your Offer",
+      "status": "active",
+      "platform": "Google",
+      "budget_usd": 18000,
+      "created_at": "2025-10-01"
+    },
+    {
+      "id": 4,
+      "name": "EMEA Expansion Drive",
+      "slug": "emea-expansion",
+      "description": "Market entry campaign across key EMEA markets. Goal is to generate qualified leads for the sales team in Germany, France, and the Netherlands.",
+      "email_subject": "Expanding Horizons Across EMEA — Join Us",
+      "cta_text": "Learn More & Connect",
+      "status": "paused",
+      "platform": "Google",
+      "budget_usd": 32000,
+      "created_at": "2025-04-01"
+    },
+    {
+      "id": 5,
+      "name": "Partner Referral Programme",
+      "slug": "partner-referral",
+      "description": "Co-branded referral campaign targeting existing partner networks. Partners can refer contacts who are directed to a co-branded landing page.",
+      "email_subject": "Refer a Friend and Earn Rewards 🤝",
+      "cta_text": "Submit a Referral",
+      "status": "active",
+      "platform": "Email",
+      "budget_usd": 5000,
+      "created_at": "2025-07-01"
+    }
+  ],
+  "events": [
+    {
+      "id": 1,
+      "campaign_id": 2,
+      "name": "Enterprise Launch Webinar — London",
+      "event_date": "2025-09-18",
+      "location": "Online (Zoom)",
+      "capacity": 200,
+      "description": "Live product demo and Q&A for enterprise prospects. Registration required."
+    },
+    {
+      "id": 2,
+      "campaign_id": 2,
+      "name": "Enterprise Launch Roundtable — Dublin",
+      "event_date": "2025-09-25",
+      "location": "The Marker Hotel, Dublin 2",
+      "capacity": 40,
+      "description": "Intimate in-person roundtable for C-suite and senior leaders. Invitation only."
+    },
+    {
+      "id": 3,
+      "campaign_id": 1,
+      "name": "Summer Pop-up Experience — Cork",
+      "event_date": "2025-07-12",
+      "location": "Cork City Centre",
+      "capacity": 500,
+      "description": "Consumer-facing brand activation event with interactive installations."
+    },
+    {
+      "id": 4,
+      "campaign_id": 4,
+      "name": "EMEA Partner Summit — Amsterdam",
+      "event_date": "2025-10-08",
+      "location": "Amsterdam RAI, Netherlands",
+      "capacity": 300,
+      "description": "Annual partner summit with keynotes, workshops, and networking. Open to EMEA partners."
+    },
+    {
+      "id": 5,
+      "campaign_id": 5,
+      "name": "Partner Kickoff Call — Q4",
+      "event_date": "2025-10-01",
+      "location": "Online (Teams)",
+      "capacity": 100,
+      "description": "Quarterly onboarding and briefing call for all referral programme partners."
+    }
+  ]
+}

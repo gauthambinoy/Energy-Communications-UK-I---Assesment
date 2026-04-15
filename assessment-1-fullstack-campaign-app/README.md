@@ -1,21 +1,29 @@
-# Assessment 1 — Full Stack Campaign App
+# Campaign Email Dispatch & Lead Capture App
 
-A full-stack Campaign Email Dispatch & Lead Capture application built with React, Node.js, TypeScript, and SQLite.
+A full-stack web application that lets marketing teams dispatch campaign emails and capture leads through dedicated landing pages. Built with React, Node.js, TypeScript, and SQLite.
+
+---
 
 ## Tech Stack
 
-- **Backend:** Node.js, Express.js, TypeScript, SQLite (better-sqlite3), Nodemailer
-- **Frontend:** React, TypeScript, Vite, TailwindCSS, React Router
-- **Email:** Ethereal Email (test SMTP — no real emails sent)
+| Layer | Technologies |
+|-------|-------------|
+| Backend | Node.js, Express.js, TypeScript |
+| Database | SQLite (via `better-sqlite3`) |
+| Frontend | React 19, TypeScript, Vite, TailwindCSS, React Router v7 |
+| Email | Nodemailer + Ethereal Email (test SMTP — no real emails sent) |
+| Security | `express-rate-limit`, HTML input sanitisation |
 
-## Getting Started
+---
+
+## Local Setup
 
 ### Prerequisites
 
-- Node.js (v18 or higher)
+- Node.js v18 or higher
 - npm
 
-### 1. Start the Backend
+### Step 1 — Start the backend
 
 ```bash
 cd backend
@@ -23,13 +31,16 @@ npm install
 npm run dev
 ```
 
-The server starts at `http://localhost:3001`. On first run, it automatically creates the SQLite database and seeds it with campaign and event data from `seed_campaigns.json`.
+Backend runs at **http://localhost:3001**
 
-The Ethereal email preview URL is logged to the console each time an email is sent.
+On first run the server will automatically:
+- Create the SQLite database file (`campaigns.db`)
+- Create all three tables (`campaigns`, `events`, `submissions`)
+- Seed 5 campaigns and 5 events from `seed_campaigns.json`
 
-### 2. Start the Frontend
+### Step 2 — Start the frontend
 
-Open a second terminal:
+Open a **second terminal**:
 
 ```bash
 cd frontend
@@ -37,43 +48,146 @@ npm install
 npm run dev
 ```
 
-The frontend starts at `http://localhost:3000`.
+Frontend runs at **http://localhost:3000**
 
-## API Endpoints
+---
+
+## How to verify emails are sending
+
+When you send a campaign email, the backend logs a preview URL to the console:
+
+```
+Email sent! Preview URL: https://ethereal.email/message/AbCdEf...
+```
+
+Open that URL in your browser to see the full HTML email — including the CTA button linking to the landing page. No real email account is needed.
+
+---
+
+## Application Pages
+
+| URL | Page | Description |
+|-----|------|-------------|
+| `/` | Campaign List | View all campaigns, send emails inline |
+| `/landing/:slug` | Landing Page | Lead capture form (for email recipients) |
+| `/submissions` | Submissions Dashboard | View all leads, download CSV |
+| `*` | 404 Not Found | Catch-all for unknown URLs |
+
+---
+
+## API Reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/campaigns` | Returns all campaigns |
-| GET | `/api/campaigns/:id` | Returns a single campaign with its events |
-| POST | `/api/campaigns/:id/send` | Sends a campaign email to a recipient |
-| POST | `/api/landing/:slug/submit` | Handles landing page form submission |
+| GET | `/api/campaigns` | Returns all campaigns, sorted by date |
+| GET | `/api/campaigns/:id` | Returns one campaign with its events |
+| POST | `/api/campaigns/:id/send` | Sends a campaign email via Ethereal |
+| POST | `/api/landing/:slug/submit` | Saves a landing page form submission |
 | GET | `/api/submissions` | Returns all submissions with campaign name |
-| GET | `/api/submissions/export` | Downloads all submissions as CSV |
-| GET | `/api/health` | Health check endpoint |
+| GET | `/api/submissions/export` | Downloads all submissions as a CSV file |
+| GET | `/api/health` | Health check |
 
-## Application Flow
+**POST `/api/campaigns/:id/send`**
+```json
+// Request
+{ "recipientEmail": "someone@example.com" }
 
-1. User views campaigns on the homepage
-2. User clicks "Send Email" and enters a recipient email address
-3. Backend sends an HTML email via Ethereal with a CTA linking to the landing page
-4. Recipient clicks the link and lands on `/landing/:slug`
-5. Recipient fills in the lead capture form (First Name, Last Name, Email, Company)
-6. Submission is saved to SQLite
-7. All submissions are viewable on the `/submissions` dashboard
-8. Submissions can be exported as CSV
+// Response
+{ "message": "Email sent successfully", "previewUrl": "https://ethereal.email/..." }
+```
+
+**POST `/api/landing/:slug/submit`**
+```json
+// Request
+{ "firstName": "Jane", "lastName": "Smith", "email": "jane@company.com", "company": "Acme Ltd" }
+
+// Response (201)
+{ "message": "Submission received — thank you!" }
+```
+
+---
 
 ## Database Schema
 
-Three tables are created on startup:
+Three tables are created automatically on startup:
 
-- **campaigns** — seeded from `seed_campaigns.json` (5 campaigns)
-- **events** — seeded from `seed_campaigns.json` (5 events, linked to campaigns)
-- **submissions** — populated when users submit the landing page form
+```sql
+campaigns   — id, name, slug, description, email_subject, cta_text,
+              status, platform, budget_usd, created_at
+
+events      — id, campaign_id (→ campaigns), name, event_date,
+              location, capacity, description
+
+submissions — id, campaign_id (→ campaigns), first_name, last_name,
+              email, company, submitted_at
+```
+
+Foreign key constraints are enforced with `PRAGMA foreign_keys = ON`.
+
+---
+
+## End-to-End Flow
+
+```
+1. Open http://localhost:3000
+2. Click "Send Email" on any campaign → enter a recipient email → Send
+3. Check the backend console for the Ethereal preview URL
+4. Open the URL → verify the email HTML and CTA link
+5. Click the CTA link (or go to /landing/:slug directly)
+6. Fill in the lead capture form → Submit
+7. Open /submissions → the new lead appears in the table
+8. Click "Download CSV" → file downloads with all submission data
+```
+
+---
+
+## Project Structure
+
+```
+backend/
+  src/
+    index.ts          ← Express server, middleware, route mounting
+    database.ts       ← SQLite setup, table creation, seed logic
+    types.ts          ← Shared TypeScript interfaces
+    utils.ts          ← isValidEmail, isBlank, formatDate helpers
+    routes/
+      campaigns.ts    ← GET /api/campaigns, GET /api/campaigns/:id
+      landing.ts      ← POST /api/campaigns/:id/send, POST /api/landing/:slug/submit
+      submissions.ts  ← GET /api/submissions, GET /api/submissions/export
+    services/
+      email.ts        ← Nodemailer + Ethereal transporter and HTML template
+
+frontend/
+  src/
+    App.tsx           ← React Router setup, conditional Navbar
+    types.ts          ← Frontend TypeScript interfaces (mirrors backend)
+    components/
+      Navbar.tsx      ← Shared navigation with active link highlighting
+    pages/
+      CampaignList.tsx   ← Campaign cards, inline email send form
+      LandingPage.tsx    ← Lead capture form, thank-you screen
+      Submissions.tsx    ← Submissions table, pagination, CSV download
+      NotFound.tsx       ← 404 page
+```
+
+---
 
 ## Design Decisions
 
-- **Separation of concerns:** Routes, services, types, and utilities are in separate files so each module has a single responsibility.
-- **Input validation:** All endpoints validate incoming data before processing. Invalid campaign IDs, missing fields, and malformed emails are caught with descriptive error messages.
-- **Reusable utilities:** Email validation, blank-check, and date formatting are extracted into `utils.ts` to avoid duplication across routes.
-- **Ethereal Email:** Used as a test SMTP provider so emails can be verified without a real mail account. The preview URL is logged to the console on each send.
-- **Proxy configuration:** Vite proxies `/api` requests to the backend during development, keeping frontend and backend decoupled while avoiding CORS issues.
+- **Separation of concerns** — Routes, services, types, and utilities each have their own module. Route files only deal with HTTP — no business logic mixed in.
+
+- **Single source of truth for types** — All TypeScript interfaces are defined once in `types.ts` and imported where needed. No local redefinitions anywhere.
+
+- **Server-side validation** — Every endpoint validates all inputs before touching the database. Missing fields, malformed emails, and invalid IDs return clear 400 errors.
+
+- **Input sanitisation** — Text fields are stripped of HTML tags before saving (`/<[^>]*>/g`). This prevents stored XSS if data is ever rendered back in a browser context.
+
+- **Rate limiting** — `POST /api/campaigns/:id/send` is capped at 10 requests per IP per 15 minutes via `express-rate-limit`. The limiter is registered *before* the route handler so it runs on every request.
+
+- **Foreign key enforcement** — SQLite ignores foreign key constraints by default. `PRAGMA foreign_keys = ON` is set explicitly so referential integrity is always enforced.
+
+- **Reusable utilities** — `isValidEmail`, `isBlank`, and `formatDate` live in `utils.ts` and are shared across routes and services rather than duplicated.
+
+- **Vite proxy** — The frontend proxies `/api` requests to `localhost:3001`. No hardcoded backend URLs anywhere in the frontend code.
+
+- **Conditional Navbar** — The Navbar is hidden on `/landing/*` routes. Landing pages are public-facing (opened by email recipients) and should not expose internal app navigation.

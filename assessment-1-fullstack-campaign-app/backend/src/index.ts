@@ -10,11 +10,23 @@
 
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 
 // Import route modules — each handles a specific group of endpoints
 import campaignRoutes from './routes/campaigns';
 import landingRoutes from './routes/landing';
 import submissionRoutes from './routes/submissions';
+
+// Limits the email send endpoint to 10 requests per IP per 15 minutes.
+// Without this, anyone could spam the endpoint and hammer the SMTP server.
+// This is a simple but important security measure.
+const emailRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,                   // max 10 email sends per IP per window
+    message: { error: 'Too many email requests. Please try again in 15 minutes.' },
+    standardHeaders: true,     // send rate limit info in response headers
+    legacyHeaders: false,
+});
 
 const app = express();
 const PORT = 3001;
@@ -33,6 +45,11 @@ app.use(express.json());
 // ── Routes ────────────────────────────────────────────────────
 // Each route module is mounted at a specific URL prefix.
 // For example, campaignRoutes handles GET '/' which becomes GET '/api/campaigns'
+
+// IMPORTANT: rate limiter must be registered BEFORE the route handler.
+// Express processes middleware top-to-bottom — if we registered this after
+// landingRoutes, the request would already be handled and this would never run.
+app.use('/api/campaigns/:id/send', emailRateLimit);
 
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api', landingRoutes);

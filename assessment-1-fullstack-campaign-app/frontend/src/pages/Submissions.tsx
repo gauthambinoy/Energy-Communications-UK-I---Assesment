@@ -12,7 +12,6 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { Submission } from '../types';
 
 // Number of submissions to show per page
@@ -86,28 +85,16 @@ function Submissions() {
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Page header */}
-            <header className="bg-white shadow-sm border-b">
-                <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-                    <div>
-                        <Link
-                            to="/"
-                            className="text-blue-600 hover:text-blue-800 text-sm"
-                        >
-                            ← Back to Campaigns
-                        </Link>
-                        <h1 className="text-2xl font-bold text-gray-800 mt-1">
-                            Submissions Dashboard
-                        </h1>
-                    </div>
-                    <button
-                        onClick={handleDownloadCSV}
-                        disabled={submissions.length === 0}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors font-medium"
-                    >
-                        Download CSV
-                    </button>
-                </div>
-            </header>
+            <div className="max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-800">Submissions Dashboard</h2>
+                <button
+                    onClick={handleDownloadCSV}
+                    disabled={submissions.length === 0}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors font-medium"
+                >
+                    Download CSV
+                </button>
+            </div>
 
             <main className="max-w-6xl mx-auto px-6 py-8">
                 {/* Empty state */}

@@ -23,6 +23,11 @@ const db = new Database(dbPath);
 // Makes the database faster when reading and writing at the same time
 db.pragma('journal_mode = WAL');
 
+// SQLite does NOT enforce foreign key constraints by default — you have to opt in.
+// Without this, you could insert a submission with a non-existent campaign_id
+// and SQLite would silently accept it, causing data integrity issues.
+db.pragma('foreign_keys = ON');
+
 /**
  * Creates the three tables if they don't already exist.
  * IF NOT EXISTS prevents errors when the server restarts —
