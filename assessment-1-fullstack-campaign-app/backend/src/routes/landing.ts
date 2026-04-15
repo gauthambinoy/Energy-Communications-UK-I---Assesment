@@ -18,14 +18,7 @@ import { Router, Request, Response } from 'express';
 import db from '../database';
 import { Campaign } from '../types';
 import { sendCampaignEmail } from '../services/email';
-import { isValidEmail, isBlank } from '../utils';
-
-// Strips any HTML tags from a user-supplied string.
-// This prevents stored XSS — if data is ever rendered in a browser,
-// tags like <script> won't execute because they were removed at input time.
-function sanitise(value: string): string {
-  return value.trim().replace(/<[^>]*>/g, '');
-}
+import { isValidEmail, isBlank, sanitise } from '../utils';
 
 const router = Router();
 
@@ -47,12 +40,13 @@ router.post('/campaigns/:id/send', async (req: Request, res: Response) => {
     }
 
     // Validate that an email was provided and is properly formatted
-    if (isBlank(recipientEmail)) {
+    const trimmedEmail = (typeof recipientEmail === 'string' ? recipientEmail : '').trim();
+    if (isBlank(trimmedEmail)) {
       res.status(400).json({ error: 'Recipient email is required' });
       return;
     }
 
-    if (!isValidEmail(recipientEmail)) {
+    if (!isValidEmail(trimmedEmail)) {
       res.status(400).json({ error: 'Invalid email format' });
       return;
     }
@@ -68,14 +62,14 @@ router.post('/campaigns/:id/send', async (req: Request, res: Response) => {
     }
 
     // Send the email and get the Ethereal preview URL
-    const previewUrl = await sendCampaignEmail(campaign, recipientEmail);
+    const previewUrl = await sendCampaignEmail(campaign, trimmedEmail);
 
     // Persist a log entry so the Email Dispatch Log page can show it
     db.prepare(
       'INSERT INTO email_logs (campaign_id, recipient_email, preview_url) VALUES (?, ?, ?)'
-    ).run(campaign.id, recipientEmail.trim(), previewUrl);
+    ).run(campaign.id, trimmedEmail, previewUrl);
 
-    res.json({
+    res.status(202).json({
       message: 'Email sent successfully',
       previewUrl,
     });
@@ -97,7 +91,8 @@ router.post('/landing/:slug/submit', (req: Request, res: Response) => {
     const { firstName, lastName, email, company } = req.body;
 
     // Validate all required fields are present and not empty
-    if (isBlank(firstName) || isBlank(lastName) || isBlank(email) || isBlank(company)) {
+    const trimmedEmail = (typeof email === 'string' ? email : '').trim();
+    if (isBlank(firstName) || isBlank(lastName) || isBlank(trimmedEmail) || isBlank(company)) {
       res.status(400).json({
         error: 'All fields are required: firstName, lastName, email, company',
       });
@@ -105,7 +100,7 @@ router.post('/landing/:slug/submit', (req: Request, res: Response) => {
     }
 
     // Validate email format
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(trimmedEmail)) {
       res.status(400).json({ error: 'Invalid email format' });
       return;
     }
@@ -129,7 +124,7 @@ router.post('/landing/:slug/submit', (req: Request, res: Response) => {
     // sanitise() strips HTML tags in addition to trimming whitespace.
     // This prevents malicious input like <script>alert('xss')</script> from
     // being stored in the database and potentially executed later.
-    stmt.run(campaign.id, sanitise(firstName), sanitise(lastName), email.trim(), sanitise(company));
+    stmt.run(campaign.id, sanitise(firstName), sanitise(lastName), sanitise(trimmedEmail), sanitise(company));
 
     res.status(201).json({ message: 'Submission received — thank you!' });
   } catch (error) {

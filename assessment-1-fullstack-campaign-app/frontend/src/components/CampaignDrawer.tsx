@@ -13,16 +13,7 @@
 // ============================================================
 
 import { CampaignWithEvents } from '../types';
-
-// Formats a YYYY-MM-DD date string to "18 Sep 2025".
-// Pins to local midnight to avoid UTC offset day-shifts.
-function formatDate(raw: string): string {
-    return new Date(raw + 'T00:00:00').toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-    });
-}
+import { formatEventDate } from '../utils/date';
 
 interface Props {
     // null = drawer closed; a campaign object = drawer open showing that campaign
@@ -104,7 +95,7 @@ export default function CampaignDrawer({ campaign, onClose }: Props) {
                                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Created</p>
                                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                                     {/* created_at may be a full ISO string or just a date */}
-                                    {formatDate(campaign.created_at.split('T')[0])}
+                                    {formatEventDate(campaign.created_at.split('T')[0])}
                                 </p>
                             </div>
                         </div>
@@ -145,7 +136,7 @@ export default function CampaignDrawer({ campaign, onClose }: Props) {
                                                 {event.name}
                                             </p>
                                             <p className="text-xs text-gray-500 mt-1">
-                                                {formatDate(event.event_date)} · {event.location}
+                                                {formatEventDate(event.event_date)} · {event.location}
                                             </p>
                                             <p className="text-xs text-gray-400 mt-0.5">
                                                 Capacity: {event.capacity.toLocaleString('en-US')}

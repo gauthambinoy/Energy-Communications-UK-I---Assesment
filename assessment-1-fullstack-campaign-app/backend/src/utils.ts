@@ -17,7 +17,7 @@
  * @returns true if the email format is valid, false otherwise
  */
 export function isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
     return emailRegex.test(email);
 }
 
@@ -48,4 +48,15 @@ export function formatDate(dateStr: string): string {
         month: 'long',
         year: 'numeric',
     });
+}
+
+/**
+ * Strips HTML tags from a user-supplied string and trims whitespace.
+ * Prevents stored XSS when data is later rendered in a browser.
+ *
+ * @param value - Raw string from user input
+ * @returns Sanitised, trimmed string
+ */
+export function sanitise(value: string): string {
+    return value.trim().replace(/<[^>]*>/g, '');
 }

@@ -328,6 +328,249 @@ def clean_headlines(df):
 
 
 # =============================================================================
+# PART A.4 — Company Name Standardisation
+# =============================================================================
+# Two problems exist in the company_name column:
+#
+#   1. Missing values — 6 rows have no company at all, but the headline often
+#      reveals it. Example: Patrick Nolan's company is blank, but his headline
+#      says "VP of Marketing at LinkedIn". We extract "LinkedIn" from there.
+#
+#   2. Variant spellings — the same company appears under different names:
+#        "SAP Ireland" and "SAP" → same company
+#        "Google Ireland" and "Google" → same company
+#        "LinkedIn Ireland" and "LinkedIn" → same company
+#      If we don't merge these, the final output would have duplicate companies.
+#
+# We handle (1) first so the extraction can feed into (2).
+# =============================================================================
+
+
+def standardise_companies(df):
+    """
+    Fill missing company names from headlines and map variants to canonical names.
+
+    Two-pass approach:
+        Pass 1 — Fill blanks: if company_name is empty but the headline contains
+                 " at Company" or " - Company", extract the company portion.
+        Pass 2 — Normalise: map known variant names to a single canonical form
+                 so "SAP Ireland" and "SAP" are treated as the same company.
+
+    Args:
+        df: DataFrame after headline cleaning
+
+    Returns:
+        DataFrame with standardised company names
+    """
+
+    # --- Pass 1: Fill missing company names from the headline ---
+    # Some rows have a blank company_name, but the headline contains it.
+    # Example: headline = "VP of Marketing at LinkedIn" → company = "LinkedIn"
+    # Example: headline = "CTO at CRH" → company = "CRH"
+    def extract_company_from_headline(row):
+        # If the company already exists and is not blank, keep it as-is
+        if pd.notna(row['company_name']) and str(row['company_name']).strip() != '':
+            return row['company_name'].strip()
+
+        headline = str(row['headline']) if pd.notna(row['headline']) else ''
+
+        # Try " at " first — "VP of Marketing at LinkedIn" → take "LinkedIn"
+        if ' at ' in headline:
+            return headline.split(' at ')[-1].strip()
+
+        # Try " - " second — "Sales Director - Total Produce" → take "Total Produce"
+        if ' - ' in headline:
+            return headline.split(' - ')[-1].strip()
+
+        # Could not extract — return whatever was there (may still be NaN)
+        return row['company_name']
+
+    df['company_name'] = df.apply(extract_company_from_headline, axis=1)
+
+    # --- Pass 2: Map variant names to canonical form ---
+    # These mappings were identified by inspecting the unique company names
+    # in the dataset and grouping those that refer to the same organisation.
+    COMPANY_MAP = {
+        'Google Ireland': 'Google',
+        'Meta Ireland': 'Meta',
+        'LinkedIn Ireland': 'LinkedIn',
+        'SAP Ireland': 'SAP',
+        'Oracle Ireland': 'Oracle',
+    }
+
+    df['company_name'] = df['company_name'].replace(COMPANY_MAP)
+
+    # --- Final cleanup: strip whitespace from all company names ---
+    df['company_name'] = df['company_name'].str.strip()
+
+    print(f"\n[standardise_companies] {df['company_name'].nunique()} unique companies.")
+    print(f"  Companies: {sorted(df['company_name'].dropna().unique())}")
+
+    return df
+
+
+# =============================================================================
+# PART A.5 — Email Validation
+# =============================================================================
+# The email column contains three types of bad data:
+#
+#   1. Phone numbers — Aoife Brennan's "email" is "+353 87 123 4567".
+#      The scraping tool put it in the wrong column.
+#
+#   2. Personal emails — "aoifebrennan1985@gmail.com" is a personal address.
+#      The brief explicitly says: "email should be empty string if not available
+#      or if only a personal email was found."
+#
+#   3. Missing/empty values — many rows have no email. These become "".
+#
+# Strategy: validate against an email regex, then check the domain against
+# a list of known personal email providers.
+# =============================================================================
+
+
+def validate_emails(df):
+    """
+    Validate email format and reject phone numbers and personal emails.
+
+    Validation rules:
+        1. Must match a standard email regex (letters@domain.tld)
+           — rejects phone numbers, random text, etc.
+        2. Domain must not be a personal email provider (gmail, yahoo, etc.)
+           — the brief says to use empty string for personal emails
+        3. Missing or invalid values are set to empty string (not NaN)
+
+    Args:
+        df: DataFrame after company standardisation
+
+    Returns:
+        DataFrame with validated emails (invalid ones set to empty string)
+    """
+    # Standard email format: something@something.something
+    # This catches the vast majority of valid business emails.
+    EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+    # Personal email domains — if the email uses one of these, we treat it
+    # as "personal email only" and set to empty string per the brief.
+    PERSONAL_DOMAINS = [
+        'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+        'icloud.com', 'mail.com', 'protonmail.com', 'live.com',
+    ]
+
+    def clean_email(email):
+        """Validate a single email value. Returns cleaned email or empty string."""
+        # Handle missing values
+        if pd.isna(email) or str(email).strip() == '':
+            return ''
+
+        email = str(email).strip()
+
+        # Check against email format — rejects "+353 87 123 4567" etc.
+        if not re.match(EMAIL_REGEX, email):
+            return ''
+
+        # Check if it's a personal email — rejects "aoifebrennan1985@gmail.com"
+        domain = email.split('@')[1].lower()
+        if domain in PERSONAL_DOMAINS:
+            return ''
+
+        # Valid corporate email — normalise to lowercase
+        return email.lower()
+
+    df['email'] = df['email'].apply(clean_email)
+
+    valid_count = (df['email'] != '').sum()
+    print(f"\n[validate_emails] {valid_count} valid corporate emails found.")
+
+    return df
+
+
+# =============================================================================
+# PART A.6 — Deduplication
+# =============================================================================
+# The LinkedIn data was scraped on multiple dates. The same person can appear
+# two or three times with slightly different data:
+#
+#   Sarah Murphy    | Accenture  | 2025-09-12
+#   Sarah Murphy    | Accenture  | 2025-09-14    ← duplicate scrape
+#
+#   Aoife Brennan   | Salesforce | 2025-09-12
+#   Aoife Brennan   | Salesforce | 2025-09-16    ← duplicate
+#   Aoife Brennan   | Salesforce | 2025-09-18    ← duplicate (has gmail)
+#
+# Strategy:
+#   1. Group rows by (normalised name + normalised company)
+#   2. Sort each group by scraped_at descending (latest first)
+#   3. Keep the latest row (most up-to-date profile info)
+#   4. BUT if the latest row lost its email, check earlier rows for one
+#      — this "email merging" prevents us from losing useful contact data
+# =============================================================================
+
+
+def deduplicate(df):
+    """
+    Remove duplicate profiles where the same person was scraped multiple times.
+
+    Deduplication logic:
+        1. Create normalised keys (lowercase name + company) for matching
+        2. Sort by scrape date descending so the freshest data comes first
+        3. For each person+company group, keep the latest row
+        4. If the latest row has no email but an earlier row does, preserve
+           the earlier email (avoids losing useful contact information)
+
+    Args:
+        df: DataFrame after email validation
+
+    Returns:
+        DataFrame with one row per unique person+company combination
+    """
+    # --- Step 1: Create normalised keys for matching ---
+    # We compare in lowercase so "JAMES O'BRIEN" matches "James O'Brien"
+    df['_name_key'] = df['raw_name'].str.lower().str.strip()
+    df['_company_key'] = df['company_name'].str.lower().str.strip()
+
+    # --- Step 2: Sort by scrape date descending (latest first) ---
+    df = df.sort_values('scraped_at', ascending=False)
+
+    # --- Step 3: For each group, pick the best row ---
+    def pick_best_row(group):
+        """
+        From a group of duplicate rows (same person + company), select
+        the most recent one. If it has no email, try to recover one from
+        an earlier scrape.
+        """
+        # First row is the latest because we sorted descending
+        best = group.iloc[0].copy()
+
+        # If the latest row has no email, check older rows for one.
+        # This handles cases where an earlier scrape captured the email
+        # but the latest scrape did not.
+        if best['email'] == '' or pd.isna(best['email']):
+            for _, row in group.iloc[1:].iterrows():
+                if row['email'] != '' and pd.notna(row['email']):
+                    best['email'] = row['email']
+                    break  # Use the first valid email found
+
+        return best
+
+    before = len(df)
+    df = df.groupby(['_name_key', '_company_key'], sort=False).apply(
+        pick_best_row
+    ).reset_index(drop=True)
+    after = len(df)
+
+    # --- Step 4: Clean up temporary columns ---
+    # After groupby, these columns may or may not still exist depending on
+    # the pandas version. Drop them only if they are present.
+    for col in ['_name_key', '_company_key']:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
+    print(f"\n[deduplicate] Removed {before - after} duplicates. {after} unique contacts remaining.")
+
+    return df
+
+
+# =============================================================================
 # TEMPORARY TEST — will be replaced with the full pipeline later
 # =============================================================================
 
@@ -336,14 +579,19 @@ if __name__ == '__main__':
     df = remove_junk_rows(df)
     df = clean_names(df)
     df = clean_headlines(df)
+    df = standardise_companies(df)
+    df = validate_emails(df)
+    df = deduplicate(df)
 
-    # Verify: print cleaned name + extracted job title side by side
+    # Verify: print name, company, title, email for every remaining row
     print("\n" + "=" * 60)
-    print("CLEANED NAMES + EXTRACTED TITLES")
+    print("AFTER FULL CLEANING + DEDUP")
     print("=" * 60)
     for _, row in df.iterrows():
-        name = str(row['raw_name']) if pd.notna(row['raw_name']) else '???'
-        title = str(row['job_title']) if pd.notna(row['job_title']) else '???'
-        print(f"  {name:30s} | {title}")
+        name = str(row['raw_name'])
+        company = str(row['company_name'])
+        title = str(row['job_title'])
+        email = str(row['email']) if row['email'] else '(none)'
+        print(f"  {name:25s} | {company:22s} | {title:40s} | {email}")
 
     

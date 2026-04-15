@@ -21,16 +21,7 @@ import Toast, { ToastPayload } from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import CampaignDrawer from '../components/CampaignDrawer';
 import API_BASE from '../api';
-
-// Formats a YYYY-MM-DD date string to "18 Sep 2025".
-// Pinning to local midnight avoids day-shifts from UTC offset differences.
-function formatEventDate(raw: string): string {
-    return new Date(raw + 'T00:00:00').toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-    });
-}
+import { formatEventDate } from '../utils/date';
 
 function CampaignList() {
     // ── Data state ────────────────────────────────────────────

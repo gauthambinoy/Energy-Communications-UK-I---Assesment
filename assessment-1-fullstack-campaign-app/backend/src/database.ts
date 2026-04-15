@@ -17,7 +17,7 @@ import { SeedData } from './types';
 // Create (or open) the database file in the backend folder
 // path.join safely builds a file path regardless of operating system
 const dbPath = path.join(__dirname, '..', 'campaigns.db');
-const db = new Database(dbPath);
+const db: InstanceType<typeof Database> = new Database(dbPath);
 
 // WAL mode = Write-Ahead Logging
 // Makes the database faster when reading and writing at the same time
