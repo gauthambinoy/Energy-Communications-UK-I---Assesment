@@ -113,8 +113,10 @@ export async function sendCampaignEmail(
 ): Promise<string> {
     const transport = await getTransporter();
 
-    // Build the landing page URL using the campaign's slug
-    const landingPageUrl = `http://localhost:3000/landing/${campaign.slug}`;
+    // The base URL for landing pages. In development this is localhost;
+    // in production it points to the deployed frontend domain.
+    const frontendBase = process.env.LANDING_BASE_URL ?? 'http://localhost:3000';
+    const landingPageUrl = `${frontendBase}/landing/${campaign.slug}`;
 
     // Build the HTML email content
     const html = buildEmailHtml(campaign, landingPageUrl);

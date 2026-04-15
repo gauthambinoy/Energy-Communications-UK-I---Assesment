@@ -174,6 +174,12 @@ frontend/
 
 ## Design Decisions
 
+- **SQLite seeding on startup** — The database is created and seeded automatically when the server starts (`database.ts`). This means reviewers can `npm run dev` and immediately see data — no manual SQL imports, no migration CLI, no Docker dependency. If the database already exists, seeding is skipped. For a demo-scoped assessment this is simpler and more reliable than a separate migration tool.
+
+- **Ethereal for email testing** — Nodemailer's Ethereal service generates a throwaway SMTP account on first use. Emails aren't delivered to real inboxes — instead you get a preview URL to inspect the full HTML. This means the assessment can demonstrate real email dispatch without requiring API keys, signup, or risking spam delivery.
+
+- **Rate limiting placement** — The `express-rate-limit` middleware for the email send endpoint is registered *before* the route handler in `index.ts` (line `app.use('/api/campaigns/:id/send', emailRateLimit)`). Express processes middleware top-to-bottom, so if the limiter ran after the route, requests would already be handled. Placing it first ensures every send request is checked against the 10-per-IP-per-15-minute cap before any SMTP work happens.
+
 - **Separation of concerns** — Routes, services, types, and utilities each have their own module. Route files only deal with HTTP — no business logic mixed in.
 
 - **Single source of truth for types** — All TypeScript interfaces are defined once in `types.ts` and imported where needed. No local redefinitions anywhere.
