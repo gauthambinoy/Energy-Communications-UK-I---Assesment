@@ -1,41 +1,53 @@
 // ============================================================
 // Campaign List Page (Homepage)
 // Displays all marketing campaigns in a clean card layout.
-// Each campaign shows its name, status, platform, and events.
-// Includes a "Send Email" button that opens an inline form
-// to dispatch a campaign email to a recipient.
+// Each campaign shows its name, status, platform, budget,
+// and scheduled events.
 //
-// This is the entry point of the application — the first thing
-// users see when they open the app.
+// Features:
+//   - Live search by name or description
+//   - Filter by campaign status (active / draft)
+//   - Inline email dispatch form per campaign
+//   - Clickable Ethereal preview link after sending
+//   - Skeleton loading animation while data loads
 // ============================================================
 
-import { useState, useEffect } from 'react';
-// CampaignWithEvents is already defined in types.ts — importing it from there
-// instead of redefining it here keeps types in a single source of truth
-import { Campaign, Event, CampaignWithEvents } from '../types';
+import { useState, useEffect, useMemo } from 'react';
+import { Campaign, CampaignWithEvents } from '../types';
+
+// Convert a raw ISO date string (YYYY-MM-DD) to a human-readable label.
+// Appending T00:00:00 pins it to local midnight so the day never shifts
+// due to UTC offset differences.
+function formatEventDate(raw: string): string {
+    return new Date(raw + 'T00:00:00').toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
+}
 
 function CampaignList() {
-    // ── State ─────────────────────────────────────────────────
-    // campaigns: the list of campaigns fetched from the API
-    // loading: shows a spinner while data is being fetched
-    // error: stores any error message if the fetch fails
+    // ── Data state ────────────────────────────────────────────
     const [campaigns, setCampaigns] = useState<CampaignWithEvents[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>('');
 
-    // Track which campaign's email form is currently open (null = none)
+    // ── Filter state ──────────────────────────────────────────
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+
+    // ── Email form state ──────────────────────────────────────
+    // activeEmailForm: which campaign's inline form is open (null = none)
     const [activeEmailForm, setActiveEmailForm] = useState<number | null>(null);
-
-    // The email address typed into the send form
     const [recipientEmail, setRecipientEmail] = useState<string>('');
-
-    // Feedback message after sending (success or error)
-    const [sendStatus, setSendStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-    // Track if an email is currently being sent (to disable the button)
+    const [sendStatus, setSendStatus] = useState<{
+        type: 'success' | 'error';
+        message: string;
+        previewUrl?: string;
+    } | null>(null);
     const [sending, setSending] = useState<boolean>(false);
 
-    // ── Fetch campaigns on page load ─────────────────────────
+    // ── Fetch campaigns on page load ──────────────────────────
     useEffect(() => {
         fetchCampaigns();
     }, []);
@@ -44,21 +56,16 @@ function CampaignList() {
         try {
             setLoading(true);
 
-            // Fetch all campaigns from the backend
             const response = await fetch('/api/campaigns');
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch campaigns');
-            }
+            if (!response.ok) throw new Error('Failed to fetch campaigns');
 
             const data: Campaign[] = await response.json();
 
-            // For each campaign, fetch its events
+            // Enrich each campaign with its associated events in parallel
             const campaignsWithEvents: CampaignWithEvents[] = await Promise.all(
                 data.map(async (campaign) => {
-                    const eventResponse = await fetch(`/api/campaigns/${campaign.id}`);
-                    const fullCampaign: CampaignWithEvents = await eventResponse.json();
-                    return fullCampaign;
+                    const res = await fetch(`/api/campaigns/${campaign.id}`);
+                    return res.json() as Promise<CampaignWithEvents>;
                 })
             );
 
@@ -71,9 +78,24 @@ function CampaignList() {
         }
     }
 
-    // ── Send email handler ───────────────────────────────────
+    // ── Filtered campaigns (derived, not stored) ──────────────
+    // useMemo avoids re-filtering on every render that isn't caused
+    // by a change in campaigns, searchQuery, or statusFilter.
+    const filteredCampaigns = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return campaigns.filter((c) => {
+            const matchesSearch =
+                query === '' ||
+                c.name.toLowerCase().includes(query) ||
+                c.description.toLowerCase().includes(query);
+            const matchesStatus =
+                statusFilter === 'all' || c.status === statusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [campaigns, searchQuery, statusFilter]);
+
+    // ── Send email handler ────────────────────────────────────
     async function handleSendEmail(campaignId: number): Promise<void> {
-        // Basic validation before sending
         if (!recipientEmail.trim()) {
             setSendStatus({ type: 'error', message: 'Please enter an email address' });
             return;
@@ -90,14 +112,12 @@ function CampaignList() {
             });
 
             const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to send email');
-            }
+            if (!response.ok) throw new Error(data.error || 'Failed to send email');
 
             setSendStatus({
                 type: 'success',
-                message: `Email sent! Preview: ${data.previewUrl}`,
+                message: 'Email sent successfully!',
+                previewUrl: data.previewUrl,
             });
             setRecipientEmail('');
         } catch (err) {
@@ -112,16 +132,35 @@ function CampaignList() {
 
     // ── Render ────────────────────────────────────────────────
 
-    // Show loading state while fetching
+    // Skeleton loading — 3 placeholder cards while data loads
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <p className="text-gray-500 text-lg">Loading campaigns...</p>
+            <div className="min-h-screen bg-gray-50">
+                <main className="max-w-6xl mx-auto px-6 py-8">
+                    <div className="grid gap-6">
+                        {[1, 2, 3].map((n) => (
+                            <div key={n} className="bg-white rounded-lg shadow-sm border p-6 animate-pulse">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex-1">
+                                        <div className="h-6 bg-gray-200 rounded w-48 mb-2" />
+                                        <div className="h-4 bg-gray-200 rounded w-72 mb-1" />
+                                        <div className="h-3 bg-gray-200 rounded w-24" />
+                                    </div>
+                                    <div className="flex gap-2 ml-4">
+                                        <div className="h-7 bg-gray-200 rounded-full w-20" />
+                                        <div className="h-7 bg-gray-200 rounded-full w-20" />
+                                    </div>
+                                </div>
+                                <div className="h-4 bg-gray-200 rounded w-32 mb-4" />
+                                <div className="h-9 bg-gray-200 rounded-lg w-28" />
+                            </div>
+                        ))}
+                    </div>
+                </main>
             </div>
         );
     }
 
-    // Show error state if fetch failed
     if (error) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -132,41 +171,70 @@ function CampaignList() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-
-            {/* Campaign cards */}
             <main className="max-w-6xl mx-auto px-6 py-8">
+
+                {/* ── Search and filter bar ── */}
+                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search campaigns by name or description…"
+                        className="flex-1 px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="all">All statuses</option>
+                        <option value="active">Active</option>
+                        <option value="draft">Draft</option>
+                    </select>
+                </div>
+
+                {/* Empty state */}
+                {filteredCampaigns.length === 0 && (
+                    <div className="text-center py-16 text-gray-400">
+                        <p className="text-lg">No campaigns match your search.</p>
+                    </div>
+                )}
+
+                {/* ── Campaign cards ── */}
                 <div className="grid gap-6">
-                    {campaigns.map((campaign) => (
+                    {filteredCampaigns.map((campaign) => (
                         <div
                             key={campaign.id}
                             className="bg-white rounded-lg shadow-sm border p-6"
                         >
-                            {/* Campaign header row */}
+                            {/* Header row: name + description + budget + badges */}
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h2 className="text-xl font-semibold text-gray-800">
                                         {campaign.name}
                                     </h2>
                                     <p className="text-gray-500 mt-1">{campaign.description}</p>
+                                    <p className="text-sm text-gray-400 mt-1">
+                                        Budget: ${campaign.budget_usd.toLocaleString('en-US')}
+                                    </p>
                                 </div>
-                                <div className="flex gap-2">
-                                    {/* Status badge */}
+                                <div className="flex gap-2 flex-shrink-0 ml-4">
                                     <span
-                                        className={`px-3 py-1 rounded-full text-sm font-medium ${campaign.status === 'active'
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'bg-yellow-100 text-yellow-700'
-                                            }`}
+                                        className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                            campaign.status === 'active'
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-yellow-100 text-yellow-700'
+                                        }`}
                                     >
                                         {campaign.status}
                                     </span>
-                                    {/* Platform badge */}
                                     <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
                                         {campaign.platform}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Associated events (if any) */}
+                            {/* Associated events */}
                             {campaign.events.length > 0 && (
                                 <div className="mb-4">
                                     <h3 className="text-sm font-semibold text-gray-600 mb-2">
@@ -178,17 +246,16 @@ function CampaignList() {
                                                 key={event.id}
                                                 className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-sm"
                                             >
-                                                {event.name} — {event.event_date}
+                                                {event.name} — {formatEventDate(event.event_date)}
                                             </span>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Send email button */}
+                            {/* Toggle email form button */}
                             <button
                                 onClick={() => {
-                                    // Toggle the form open/closed
                                     setActiveEmailForm(
                                         activeEmailForm === campaign.id ? null : campaign.id
                                     );
@@ -200,7 +267,7 @@ function CampaignList() {
                                 {activeEmailForm === campaign.id ? 'Cancel' : 'Send Email'}
                             </button>
 
-                            {/* Inline email form — only visible when this campaign's button is clicked */}
+                            {/* Inline email form — slides in when button is clicked */}
                             {activeEmailForm === campaign.id && (
                                 <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
                                     <div className="flex gap-3">
@@ -216,20 +283,31 @@ function CampaignList() {
                                             disabled={sending}
                                             className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors font-medium"
                                         >
-                                            {sending ? 'Sending...' : 'Send'}
+                                            {sending ? 'Sending…' : 'Send'}
                                         </button>
                                     </div>
 
-                                    {/* Success or error message */}
+                                    {/* Feedback after send attempt */}
                                     {sendStatus && (
-                                        <p
-                                            className={`mt-3 text-sm ${sendStatus.type === 'success'
-                                                ? 'text-green-600'
-                                                : 'text-red-600'
-                                                }`}
+                                        <div
+                                            className={`mt-3 text-sm ${
+                                                sendStatus.type === 'success'
+                                                    ? 'text-green-600'
+                                                    : 'text-red-600'
+                                            }`}
                                         >
-                                            {sendStatus.message}
-                                        </p>
+                                            <span>{sendStatus.message}</span>
+                                            {sendStatus.previewUrl && (
+                                                <a
+                                                    href={sendStatus.previewUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="ml-2 underline font-medium hover:opacity-75 transition-opacity"
+                                                >
+                                                    View email preview →
+                                                </a>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             )}

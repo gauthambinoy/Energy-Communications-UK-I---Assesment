@@ -32,8 +32,13 @@ function LandingPage() {
     // Tracks whether the form was submitted successfully
     const [submitted, setSubmitted] = useState<boolean>(false);
 
-    // Tracks form-level errors
-    const [formError, setFormError] = useState<string>('');
+    // Per-field validation errors — each key maps to an error string or ''
+    const [fieldErrors, setFieldErrors] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        company: '',
+    });
 
     // Tracks if the form is currently submitting
     const [submitting, setSubmitting] = useState<boolean>(false);
@@ -75,13 +80,22 @@ function LandingPage() {
     async function handleSubmit(e: React.FormEvent): Promise<void> {
         // Prevent the default browser form submission (which would reload the page)
         e.preventDefault();
-        setFormError('');
 
-        // Validate all fields are filled in
-        if (!firstName.trim() || !lastName.trim() || !email.trim() || !company.trim()) {
-            setFormError('All fields are required');
+        // Validate each field individually so the user knows exactly what's missing
+        const errors = {
+            firstName: firstName.trim() ? '' : 'First name is required',
+            lastName:  lastName.trim()  ? '' : 'Last name is required',
+            email:     email.trim()     ? '' : 'Email is required',
+            company:   company.trim()   ? '' : 'Company is required',
+        };
+
+        if (Object.values(errors).some(Boolean)) {
+            setFieldErrors(errors);
             return;
         }
+
+        // Clear any previous errors before submitting
+        setFieldErrors({ firstName: '', lastName: '', email: '', company: '' });
 
         try {
             setSubmitting(true);
@@ -101,9 +115,10 @@ function LandingPage() {
             // Show the thank-you message
             setSubmitted(true);
         } catch (err) {
-            setFormError(
-                err instanceof Error ? err.message : 'Something went wrong'
-            );
+            setFieldErrors((prev) => ({
+                ...prev,
+                email: err instanceof Error ? err.message : 'Something went wrong',
+            }));
         } finally {
             setSubmitting(false);
         }
@@ -162,9 +177,14 @@ function LandingPage() {
                                 type="text"
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
-                                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    fieldErrors.firstName ? 'border-red-500' : ''
+                                }`}
                                 placeholder="Alexandra"
                             />
+                            {fieldErrors.firstName && (
+                                <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName}</p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -174,9 +194,14 @@ function LandingPage() {
                                 type="text"
                                 value={lastName}
                                 onChange={(e) => setLastName(e.target.value)}
-                                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    fieldErrors.lastName ? 'border-red-500' : ''
+                                }`}
                                 placeholder="Hartwell"
                             />
+                            {fieldErrors.lastName && (
+                                <p className="mt-1 text-xs text-red-600">{fieldErrors.lastName}</p>
+                            )}
                         </div>
                     </div>
 
@@ -188,9 +213,14 @@ function LandingPage() {
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                fieldErrors.email ? 'border-red-500' : ''
+                            }`}
                             placeholder="alexandra@blackstone.com"
                         />
+                        {fieldErrors.email && (
+                            <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>
+                        )}
                     </div>
 
                     <div>
@@ -201,22 +231,22 @@ function LandingPage() {
                             type="text"
                             value={company}
                             onChange={(e) => setCompany(e.target.value)}
-                            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                fieldErrors.company ? 'border-red-500' : ''
+                            }`}
                             placeholder="Blackstone Group"
                         />
+                        {fieldErrors.company && (
+                            <p className="mt-1 text-xs text-red-600">{fieldErrors.company}</p>
+                        )}
                     </div>
-
-                    {/* Error message */}
-                    {formError && (
-                        <p className="text-red-600 text-sm">{formError}</p>
-                    )}
 
                     <button
                         type="submit"
                         disabled={submitting}
                         className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors font-medium"
                     >
-                        {submitting ? 'Submitting...' : 'Submit'}
+                        {submitting ? 'Submitting…' : 'Submit'}
                     </button>
                 </form>
             </div>
