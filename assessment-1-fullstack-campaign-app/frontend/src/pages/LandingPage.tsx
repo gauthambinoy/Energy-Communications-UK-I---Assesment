@@ -84,9 +84,9 @@ function LandingPage() {
         // Validate each field individually so the user knows exactly what's missing
         const errors = {
             firstName: firstName.trim() ? '' : 'First name is required',
-            lastName:  lastName.trim()  ? '' : 'Last name is required',
-            email:     email.trim()     ? '' : 'Email is required',
-            company:   company.trim()   ? '' : 'Company is required',
+            lastName: lastName.trim() ? '' : 'Last name is required',
+            email: email.trim() ? '' : 'Email is required',
+            company: company.trim() ? '' : 'Company is required',
         };
 
         if (Object.values(errors).some(Boolean)) {
@@ -177,9 +177,8 @@ function LandingPage() {
                                 type="text"
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
-                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                    fieldErrors.firstName ? 'border-red-500' : ''
-                                }`}
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.firstName ? 'border-red-500' : ''
+                                    }`}
                                 placeholder="Alexandra"
                             />
                             {fieldErrors.firstName && (
@@ -194,9 +193,8 @@ function LandingPage() {
                                 type="text"
                                 value={lastName}
                                 onChange={(e) => setLastName(e.target.value)}
-                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                    fieldErrors.lastName ? 'border-red-500' : ''
-                                }`}
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.lastName ? 'border-red-500' : ''
+                                    }`}
                                 placeholder="Hartwell"
                             />
                             {fieldErrors.lastName && (
@@ -213,9 +211,8 @@ function LandingPage() {
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                fieldErrors.email ? 'border-red-500' : ''
-                            }`}
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.email ? 'border-red-500' : ''
+                                }`}
                             placeholder="alexandra@blackstone.com"
                         />
                         {fieldErrors.email && (
@@ -231,9 +228,8 @@ function LandingPage() {
                             type="text"
                             value={company}
                             onChange={(e) => setCompany(e.target.value)}
-                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                fieldErrors.company ? 'border-red-500' : ''
-                            }`}
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.company ? 'border-red-500' : ''
+                                }`}
                             placeholder="Blackstone Group"
                         />
                         {fieldErrors.company && (

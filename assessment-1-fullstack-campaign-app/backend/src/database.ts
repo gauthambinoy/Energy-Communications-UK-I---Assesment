@@ -69,6 +69,17 @@ function createTables(): void {
       submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
     );
+
+    -- Stores every email dispatch so the Email Log page can list them.
+    -- preview_url is the Ethereal link — useful for QA and demos.
+    CREATE TABLE IF NOT EXISTS email_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER NOT NULL,
+      recipient_email TEXT NOT NULL,
+      preview_url TEXT NOT NULL,
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+    );
   `);
 }
 

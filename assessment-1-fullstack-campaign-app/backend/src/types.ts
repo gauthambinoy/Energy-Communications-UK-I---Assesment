@@ -53,6 +53,21 @@ export interface SubmissionWithCampaign extends Submission {
     campaign_name: string;
 }
 
+// Records a single email dispatch event (matches the email_logs table)
+export interface EmailLog {
+    id: number;
+    campaign_id: number;
+    recipient_email: string;
+    preview_url: string;
+    sent_at: string;
+}
+
+// Extended email log with the campaign name joined from the campaigns table
+// Used by GET /api/email-logs so the frontend does not need a second request
+export interface EmailLogWithCampaign extends EmailLog {
+    campaign_name: string;
+}
+
 // Shape of the seed_campaigns.json file
 // Used by database.ts when loading initial data on startup
 export interface SeedData {

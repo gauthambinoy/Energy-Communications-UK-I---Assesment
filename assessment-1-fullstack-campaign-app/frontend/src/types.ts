@@ -41,3 +41,13 @@ export interface Submission {
   submitted_at: string;
   campaign_name: string;
 }
+
+// Records every email dispatch event — shown on the Email Log page
+export interface EmailLog {
+  id: number;
+  campaign_id: number;
+  campaign_name: string;
+  recipient_email: string;
+  preview_url: string;
+  sent_at: string;
+}

@@ -70,6 +70,11 @@ router.post('/campaigns/:id/send', async (req: Request, res: Response) => {
     // Send the email and get the Ethereal preview URL
     const previewUrl = await sendCampaignEmail(campaign, recipientEmail);
 
+    // Persist a log entry so the Email Dispatch Log page can show it
+    db.prepare(
+      'INSERT INTO email_logs (campaign_id, recipient_email, preview_url) VALUES (?, ?, ?)'
+    ).run(campaign.id, recipientEmail.trim(), previewUrl);
+
     res.json({
       message: 'Email sent successfully',
       previewUrl,

@@ -1,3 +1,10 @@
 /* Import Tailwind CSS — this single line loads all of Tailwind's utility classes */
 /* Instead of writing custom CSS, we use class names like "bg-blue-500", "text-white", etc. */
 @import "tailwindcss";
+
+/*
+  Enable class-based dark mode for Tailwind v4.
+  Adding the "dark" class to <html> activates all dark: utility variants.
+  The Navbar component manages this class via localStorage.
+*/
+@custom-variant dark (&:where(.dark, .dark *));

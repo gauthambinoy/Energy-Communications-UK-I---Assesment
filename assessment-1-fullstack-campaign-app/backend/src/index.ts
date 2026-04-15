@@ -16,6 +16,7 @@ import rateLimit from 'express-rate-limit';
 import campaignRoutes from './routes/campaigns';
 import landingRoutes from './routes/landing';
 import submissionRoutes from './routes/submissions';
+import emailLogRoutes from './routes/emailLogs';
 
 // Limits the email send endpoint to 10 requests per IP per 15 minutes.
 // Without this, anyone could spam the endpoint and hammer the SMTP server.
@@ -54,6 +55,7 @@ app.use('/api/campaigns/:id/send', emailRateLimit);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api', landingRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api/email-logs', emailLogRoutes);
 
 // ── Health Check ──────────────────────────────────────────────
 // A simple endpoint to verify the server is running.
