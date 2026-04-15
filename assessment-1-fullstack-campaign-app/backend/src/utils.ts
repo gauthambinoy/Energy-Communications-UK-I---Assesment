@@ -35,22 +35,6 @@ export function isBlank(value: unknown): boolean {
 }
 
 /**
- * Formats a date string into a human-readable format.
- * Used when generating email content or CSV exports.
- * 
- * @param dateStr - ISO date string (e.g. "2025-09-18")
- * @returns Formatted date (e.g. "18 September 2025")
- */
-export function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IE', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-    });
-}
-
-/**
  * Strips HTML tags from a user-supplied string and trims whitespace.
  * Prevents stored XSS when data is later rendered in a browser.
  *
@@ -59,4 +43,19 @@ export function formatDate(dateStr: string): string {
  */
 export function sanitise(value: string): string {
     return value.trim().replace(/<[^>]*>/g, '');
+}
+
+/**
+ * Escapes a value for CSV export and neutralises spreadsheet formulas.
+ * This keeps commas and quotes valid, flattens line breaks, and stops
+ * values like "=SUM(...)" from being interpreted as a formula in Excel.
+ *
+ * @param value - Raw value to export
+ * @returns Safe CSV cell wrapped in quotes
+ */
+export function escapeCsvField(value: unknown): string {
+    const text = String(value ?? '').replace(/[\r\n]+/g, ' ');
+    const formulaSafe = /^[\t ]*[=+\-@]/.test(text) ? `'${text}` : text;
+    const escaped = formulaSafe.replace(/"/g, '""');
+    return `"${escaped}"`;
 }

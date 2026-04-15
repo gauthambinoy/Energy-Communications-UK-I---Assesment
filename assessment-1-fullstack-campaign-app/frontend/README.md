@@ -7,24 +7,24 @@ React 19 + TypeScript SPA built with Vite and TailwindCSS v4.
 ```bash
 cd frontend
 npm install
-cp .env.example .env        # set VITE_API_URL if not using Vite proxy
-npm run dev                 # starts on http://localhost:3000
+cp .env.example .env
+npm run dev
 ```
+
+The dev server starts at <http://localhost:3000>.
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_API_URL` | *(empty)* | Backend base URL. Leave empty in dev — Vite proxies `/api` to `localhost:3001`. Set to your EC2 URL for production (e.g. `http://1.2.3.4:3001`). |
+- `VITE_API_URL`: Optional backend base URL.
+  Leave it empty in development because Vite proxies `/api` to the backend automatically.
+  Set it to your deployed backend URL in production.
 
 ## Routes
 
-| Path | Page | Description |
-|------|------|-------------|
-| `/` | Campaign List | Browse, search, filter campaigns; dispatch emails |
-| `/landing/:slug` | Landing Page | Public lead-capture form for a campaign |
-| `/submissions` | Submissions | View all form submissions with expand/pagination |
-| `/email-log` | Email Dispatch Log | History of every email sent via the app |
+- `/`: Campaign list page for browsing, filtering, and dispatching emails
+- `/landing/:slug`: Public landing page for one campaign
+- `/submissions`: Submissions dashboard with expand and pagination behavior
+- `/email-log`: Email dispatch history page
 
 ## Build
 

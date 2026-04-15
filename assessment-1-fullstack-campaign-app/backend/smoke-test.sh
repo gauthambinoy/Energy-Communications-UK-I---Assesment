@@ -47,34 +47,38 @@ check "List campaigns" \
 check "Get campaign by ID" \
   GET "$BASE/api/campaigns/1" 200
 
-# 4. Send campaign email (returns 202 Accepted)
+# 4. Get campaign by slug
+check "Get campaign by slug" \
+  GET "$BASE/api/campaigns/slug/summer-brand-awareness" 200
+
+# 5. Send campaign email (returns 202 Accepted)
 check "Send campaign email" \
   POST "$BASE/api/campaigns/1/send" 202 \
   '{"recipientEmail":"smoke@test.com"}'
 
-# 5. Email log persisted
+# 6. Email log persisted
 check "Email log recorded" \
   GET "$BASE/api/email-logs" 200
 
-# 6. Submit landing page form (returns 201 Created)
+# 7. Submit landing page form (returns 201 Created)
 check "Landing page submission" \
   POST "$BASE/api/landing/summer-brand-awareness/submit" 201 \
   '{"firstName":"Smoke","lastName":"Test","email":"smoke@test.com","company":"TestCo"}'
 
-# 7. List submissions
+# 8. List submissions
 check "List submissions" \
   GET "$BASE/api/submissions" 200
 
-# 8. Export submissions as CSV
+# 9. Export submissions as CSV
 check "Export CSV" \
   GET "$BASE/api/submissions/export" 200
 
-# 9. Validation — missing email should return 400
+# 10. Validation — missing email should return 400
 check "Reject blank email (send)" \
   POST "$BASE/api/campaigns/1/send" 400 \
   '{"recipientEmail":""}'
 
-# 10. Validation — missing fields should return 400
+# 11. Validation — missing fields should return 400
 check "Reject incomplete form (submit)" \
   POST "$BASE/api/landing/summer-brand-awareness/submit" 400 \
   '{"firstName":"","lastName":"","email":"","company":""}'

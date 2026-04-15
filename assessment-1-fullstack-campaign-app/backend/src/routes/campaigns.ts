@@ -1,12 +1,13 @@
 // ============================================================
 // Campaign Routes
 // Handles all API endpoints related to campaigns:
-//   GET /api/campaigns      — fetch all campaigns
-//   GET /api/campaigns/:id  — fetch a single campaign with its events
+//   GET /api/campaigns            — fetch all campaigns with their events
+//   GET /api/campaigns/slug/:slug — fetch a single campaign by slug
+//   GET /api/campaigns/:id        — fetch a single campaign with its events
 //
 // Design decisions:
 //   - Campaigns are sorted by creation date (newest first)
-//   - Campaign detail includes associated events for convenience
+//   - Campaign responses include associated events for convenience
 //   - Input validation on route parameters to prevent bad queries
 // ============================================================
 
@@ -16,10 +17,23 @@ import { Campaign, Event, CampaignWithEvents } from '../types';
 
 const router = Router();
 
+function getCampaignEvents(campaignId: number): Event[] {
+    return db.prepare(
+        'SELECT * FROM events WHERE campaign_id = ? ORDER BY event_date ASC'
+    ).all(campaignId) as Event[];
+}
+
+function buildCampaignWithEvents(campaign: Campaign): CampaignWithEvents {
+    return {
+        ...campaign,
+        events: getCampaignEvents(campaign.id),
+    };
+}
+
 /**
  * GET /api/campaigns
- * Returns all campaigns, sorted by most recently created.
- * Used by the frontend homepage to display the full campaign list.
+ * Returns all campaigns with their associated events, sorted by most recently created.
+ * Bundling events here avoids an N+1 request pattern on the frontend homepage.
  */
 router.get('/', (_req: Request, res: Response) => {
     try {
@@ -28,10 +42,40 @@ router.get('/', (_req: Request, res: Response) => {
             'SELECT * FROM campaigns ORDER BY created_at DESC'
         ).all() as Campaign[];
 
-        res.json(campaigns);
+        res.json(campaigns.map(buildCampaignWithEvents));
     } catch (error) {
         console.error('Error fetching campaigns:', error);
         res.status(500).json({ error: 'Failed to fetch campaigns' });
+    }
+});
+
+/**
+ * GET /api/campaigns/slug/:slug
+ * Returns a single campaign for public landing pages.
+ * This lets the landing page load one record instead of downloading the full list.
+ */
+router.get('/slug/:slug', (req: Request, res: Response) => {
+    try {
+        const { slug } = req.params;
+
+        if (!slug) {
+            res.status(400).json({ error: 'Campaign slug is required' });
+            return;
+        }
+
+        const campaign = db.prepare(
+            'SELECT * FROM campaigns WHERE slug = ?'
+        ).get(slug) as Campaign | undefined;
+
+        if (!campaign) {
+            res.status(404).json({ error: 'Campaign not found' });
+            return;
+        }
+
+        res.json(buildCampaignWithEvents(campaign));
+    } catch (error) {
+        console.error('Error fetching campaign by slug:', error);
+        res.status(500).json({ error: 'Failed to fetch campaign' });
     }
 });
 
@@ -60,18 +104,7 @@ router.get('/:id', (req: Request, res: Response) => {
             return;
         }
 
-        // Fetch events linked to this campaign, sorted by date
-        const events = db.prepare(
-            'SELECT * FROM events WHERE campaign_id = ? ORDER BY event_date ASC'
-        ).all(Number(id)) as Event[];
-
-        // Combine into a single response object
-        const response: CampaignWithEvents = {
-            ...campaign,
-            events,
-        };
-
-        res.json(response);
+        res.json(buildCampaignWithEvents(campaign));
     } catch (error) {
         console.error('Error fetching campaign:', error);
         res.status(500).json({ error: 'Failed to fetch campaign' });

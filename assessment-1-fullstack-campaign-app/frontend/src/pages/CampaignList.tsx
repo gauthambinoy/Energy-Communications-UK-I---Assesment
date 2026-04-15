@@ -6,7 +6,7 @@
 //
 // Features:
 //   - Live search by name or description
-//   - Filter by campaign status (active / draft)
+//   - Filter by campaign status (active / paused)
 //   - Inline email dispatch with confirm modal before sending
 //   - Toast notification after send (success + clickable preview link)
 //   - Copy-to-clipboard on the preview URL
@@ -16,12 +16,20 @@
 // ============================================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Campaign, CampaignWithEvents } from '../types';
+import { CampaignStatus, CampaignWithEvents } from '../types';
 import Toast, { ToastPayload } from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import CampaignDrawer from '../components/CampaignDrawer';
 import API_BASE from '../api';
 import { formatEventDate } from '../utils/date';
+
+type CampaignStatusFilter = 'all' | CampaignStatus;
+
+const STATUS_OPTIONS: Array<{ value: CampaignStatusFilter; label: string }> = [
+    { value: 'all', label: 'All statuses' },
+    { value: 'active', label: 'Active' },
+    { value: 'paused', label: 'Paused' },
+];
 
 function CampaignList() {
     // ── Data state ────────────────────────────────────────────
@@ -31,7 +39,7 @@ function CampaignList() {
 
     // ── Filter state ──────────────────────────────────────────
     const [searchQuery, setSearchQuery] = useState<string>('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<CampaignStatusFilter>('all');
 
     // ── Email form state ──────────────────────────────────────
     // activeEmailForm: which campaign's inline form is open (null = none)
@@ -63,21 +71,15 @@ function CampaignList() {
     async function fetchCampaigns(): Promise<void> {
         try {
             setLoading(true);
+            setError('');
 
+            // The backend now includes events in the campaign list response,
+            // so the homepage can load everything in one round-trip.
             const response = await fetch(`${API_BASE}/api/campaigns`);
             if (!response.ok) throw new Error('Failed to fetch campaigns');
 
-            const data: Campaign[] = await response.json();
-
-            // Enrich each campaign with its associated events in parallel
-            const campaignsWithEvents: CampaignWithEvents[] = await Promise.all(
-                data.map(async (campaign) => {
-                    const res = await fetch(`${API_BASE}/api/campaigns/${campaign.id}`);
-                    return res.json() as Promise<CampaignWithEvents>;
-                })
-            );
-
-            setCampaigns(campaignsWithEvents);
+            const data: CampaignWithEvents[] = await response.json();
+            setCampaigns(data);
         } catch (err) {
             setError('Unable to load campaigns. Is the backend running?');
             console.error(err);
@@ -222,12 +224,14 @@ function CampaignList() {
                     />
                     <select
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        onChange={(e) => setStatusFilter(e.target.value as CampaignStatusFilter)}
                         className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                        <option value="all">All statuses</option>
-                        <option value="active">Active</option>
-                        <option value="draft">Draft</option>
+                        {STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
                     </select>
                 </div>
 

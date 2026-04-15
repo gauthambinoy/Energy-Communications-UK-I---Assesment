@@ -4,6 +4,8 @@
 // the API data will be in. Keeps both sides in sync.
 // ============================================================
 
+export type CampaignStatus = 'active' | 'paused';
+
 export interface Campaign {
   id: number;
   name: string;
@@ -11,7 +13,7 @@ export interface Campaign {
   description: string;
   email_subject: string;
   cta_text: string;
-  status: string;
+  status: CampaignStatus;
   platform: string;
   budget_usd: number;
   created_at: string;

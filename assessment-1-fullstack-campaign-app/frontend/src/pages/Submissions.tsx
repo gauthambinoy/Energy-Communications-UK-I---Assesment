@@ -12,7 +12,7 @@
 //   - CSV export button
 // ============================================================
 
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Submission } from '../types';
 import API_BASE from '../api';
 
@@ -202,10 +202,9 @@ function Submissions() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {pageItems.map((sub) => (
-                                        <>
+                                        <Fragment key={sub.id}>
                                             {/* Main row — click to expand/collapse details */}
                                             <tr
-                                                key={sub.id}
                                                 onClick={() =>
                                                     setExpandedId(expandedId === sub.id ? null : sub.id)
                                                 }
@@ -235,7 +234,7 @@ function Submissions() {
 
                                             {/* Expanded detail row — only mounted when this row is open */}
                                             {expandedId === sub.id && (
-                                                <tr key={`${sub.id}-expanded`} className="bg-blue-50 dark:bg-blue-900/10">
+                                                <tr className="bg-blue-50 dark:bg-blue-900/10">
                                                     <td colSpan={5} className="px-6 py-4">
                                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                                                             <div>
@@ -270,7 +269,7 @@ function Submissions() {
                                                     </td>
                                                 </tr>
                                             )}
-                                        </>
+                                        </Fragment>
                                     ))}
                                 </tbody>
                             </table>

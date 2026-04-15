@@ -5,6 +5,9 @@
 // services, and API responses.
 // ============================================================
 
+// Shared status values used by the seeded campaigns and UI filters.
+export type CampaignStatus = 'active' | 'paused';
+
 // Represents a marketing campaign (matches the campaigns table)
 export interface Campaign {
     id: number;
@@ -13,7 +16,7 @@ export interface Campaign {
     description: string;
     email_subject: string; // subject line used when dispatching campaign emails
     cta_text: string;      // call-to-action button text, e.g. "Explore the Campaign"
-    status: string;        // "active" or "paused"
+    status: CampaignStatus;
     platform: string;      // e.g. "Meta", "LinkedIn", "Google"
     budget_usd: number;
     created_at: string;
@@ -41,8 +44,8 @@ export interface Submission {
     submitted_at: string;  // ISO timestamp of when the form was submitted
 }
 
-// Extended campaign type that includes associated events
-// Used by GET /api/campaigns/:id to return a campaign with its events
+// Extended campaign type that includes associated events.
+// Used by the campaign list route and the single-campaign detail routes.
 export interface CampaignWithEvents extends Campaign {
     events: Event[];
 }

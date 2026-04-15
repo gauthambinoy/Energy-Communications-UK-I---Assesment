@@ -17,7 +17,7 @@
 import { Router, Request, Response } from 'express';
 import db from '../database';
 import { SubmissionWithCampaign } from '../types';
-import { formatDate } from '../utils';
+import { escapeCsvField } from '../utils';
 
 const router = Router();
 
@@ -71,17 +71,26 @@ router.get('/export', (_req: Request, res: Response) => {
         // Start with the header row
         const csvHeader = 'First Name,Last Name,Email,Company,Campaign,Submitted At';
 
-        // Map each submission to a CSV row
-        // Wrap fields in quotes to handle commas in values (e.g. "Acme, Inc.")
+        // Escape every field so commas, quotes, line breaks, and spreadsheet-style
+        // formulas cannot break the CSV or turn into executable Excel formulas.
         const csvRows = submissions.map((s) =>
-            `"${s.first_name}","${s.last_name}","${s.email}","${s.company}","${s.campaign_name}","${formatDate(s.submitted_at)}"`
+          [
+            escapeCsvField(s.first_name),
+            escapeCsvField(s.last_name),
+            escapeCsvField(s.email),
+            escapeCsvField(s.company),
+            escapeCsvField(s.campaign_name),
+            // Preserve the exact submission timestamp instead of downgrading it
+            // to a friendly date string so the export remains lossless.
+            escapeCsvField(s.submitted_at),
+          ].join(',')
         );
 
         // Combine header + rows with newlines
         const csvContent = [csvHeader, ...csvRows].join('\n');
 
         // Set headers that tell the browser "this is a file download, not a page"
-        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="submissions.csv"');
         res.send(csvContent);
     } catch (error) {

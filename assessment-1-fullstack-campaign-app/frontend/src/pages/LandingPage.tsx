@@ -23,6 +23,7 @@ function LandingPage() {
     const [campaign, setCampaign] = useState<Campaign | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>('');
+    const [formError, setFormError] = useState<string>('');
 
     // Form fields
     const [firstName, setFirstName] = useState<string>('');
@@ -50,24 +51,30 @@ function LandingPage() {
     }, [slug]);
 
     async function fetchCampaign(): Promise<void> {
+        if (!slug) {
+            setError('Campaign not found');
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
+            setError('');
 
-            // Fetch all campaigns and find the one matching our slug
-            const response = await fetch(`${API_BASE}/api/campaigns`);
+            // Load just the requested campaign so public landing pages do not
+            // need to download the full campaign list first.
+            const response = await fetch(`${API_BASE}/api/campaigns/slug/${slug}`);
 
             if (!response.ok) {
+                if (response.status === 404) {
+                    setError('Campaign not found');
+                    return;
+                }
+
                 throw new Error('Failed to load campaign');
             }
 
-            const campaigns: Campaign[] = await response.json();
-            const found = campaigns.find((c) => c.slug === slug);
-
-            if (!found) {
-                setError('Campaign not found');
-                return;
-            }
-
+            const found: Campaign = await response.json();
             setCampaign(found);
         } catch (err) {
             setError('Unable to load campaign. Please try again later.');
@@ -97,6 +104,7 @@ function LandingPage() {
 
         // Clear any previous errors before submitting
         setFieldErrors({ firstName: '', lastName: '', email: '', company: '' });
+        setFormError('');
 
         try {
             setSubmitting(true);
@@ -116,10 +124,17 @@ function LandingPage() {
             // Show the thank-you message
             setSubmitted(true);
         } catch (err) {
-            setFieldErrors((prev) => ({
-                ...prev,
-                email: err instanceof Error ? err.message : 'Something went wrong',
-            }));
+            const message = err instanceof Error ? err.message : 'Something went wrong';
+
+            if (message === 'Invalid email format') {
+                setFieldErrors((prev) => ({
+                    ...prev,
+                    email: message,
+                }));
+                return;
+            }
+
+            setFormError(message);
         } finally {
             setSubmitting(false);
         }
@@ -237,6 +252,12 @@ function LandingPage() {
                             <p className="mt-1 text-xs text-red-600">{fieldErrors.company}</p>
                         )}
                     </div>
+
+                    {formError && (
+                        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {formError}
+                        </p>
+                    )}
 
                     <button
                         type="submit"

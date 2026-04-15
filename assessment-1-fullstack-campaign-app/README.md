@@ -6,13 +6,11 @@ A full-stack web application that lets marketing teams dispatch campaign emails 
 
 ## Tech Stack
 
-| Layer | Technologies |
-|-------|-------------|
-| Backend | Node.js, Express.js, TypeScript |
-| Database | SQLite (via `better-sqlite3`) |
-| Frontend | React 19, TypeScript, Vite, TailwindCSS, React Router v7 |
-| Email | Nodemailer + Ethereal Email (test SMTP — no real emails sent) |
-| Security | `express-rate-limit`, HTML input sanitisation |
+- Backend: Node.js, Express.js, TypeScript
+- Database: SQLite via `better-sqlite3`
+- Frontend: React 19, TypeScript, Vite, TailwindCSS, React Router v7
+- Email: Nodemailer with Ethereal Email for test SMTP
+- Security: `express-rate-limit` and HTML input sanitisation
 
 ---
 
@@ -31,9 +29,10 @@ npm install
 npm run dev
 ```
 
-Backend runs at **http://localhost:3001**
+Backend runs at <http://localhost:3001>
 
 On first run the server will automatically:
+
 - Create the SQLite database file (`campaigns.db`)
 - Create all three tables (`campaigns`, `events`, `submissions`)
 - Seed 5 campaigns and 5 events from `seed_campaigns.json`
@@ -48,7 +47,7 @@ npm install
 npm run dev
 ```
 
-Frontend runs at **http://localhost:3000**
+Frontend runs at <http://localhost:3000>
 
 ---
 
@@ -56,7 +55,7 @@ Frontend runs at **http://localhost:3000**
 
 When you send a campaign email, the backend logs a preview URL to the console:
 
-```
+```text
 Email sent! Preview URL: https://ethereal.email/message/AbCdEf...
 ```
 
@@ -66,28 +65,26 @@ Open that URL in your browser to see the full HTML email — including the CTA b
 
 ## Application Pages
 
-| URL | Page | Description |
-|-----|------|-------------|
-| `/` | Campaign List | View all campaigns, send emails inline |
-| `/landing/:slug` | Landing Page | Lead capture form (for email recipients) |
-| `/submissions` | Submissions Dashboard | View all leads, download CSV |
-| `*` | 404 Not Found | Catch-all for unknown URLs |
+- `/`: Campaign List page for browsing campaigns and sending emails
+- `/landing/:slug`: Public landing page and lead-capture form
+- `/submissions`: Submissions dashboard with CSV download
+- `*`: 404 page for unknown routes
 
 ---
 
 ## API Reference
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/campaigns` | Returns all campaigns, sorted by date |
-| GET | `/api/campaigns/:id` | Returns one campaign with its events |
-| POST | `/api/campaigns/:id/send` | Sends a campaign email via Ethereal |
-| POST | `/api/landing/:slug/submit` | Saves a landing page form submission |
-| GET | `/api/submissions` | Returns all submissions with campaign name |
-| GET | `/api/submissions/export` | Downloads all submissions as a CSV file |
-| GET | `/api/health` | Health check |
+- `GET /api/campaigns`: Returns all campaigns with associated events, sorted by date
+- `GET /api/campaigns/slug/:slug`: Returns one campaign by slug for the public landing page
+- `GET /api/campaigns/:id`: Returns one campaign with its events
+- `POST /api/campaigns/:id/send`: Sends a campaign email via Ethereal
+- `POST /api/landing/:slug/submit`: Saves a landing page form submission
+- `GET /api/submissions`: Returns all submissions with campaign name
+- `GET /api/submissions/export`: Downloads all submissions as a CSV file with exact timestamps
+- `GET /api/health`: Health check
 
 **POST `/api/campaigns/:id/send`**
+
 ```json
 // Request
 { "recipientEmail": "someone@example.com" }
@@ -97,6 +94,7 @@ Open that URL in your browser to see the full HTML email — including the CTA b
 ```
 
 **POST `/api/landing/:slug/submit`**
+
 ```json
 // Request
 { "firstName": "Jane", "lastName": "Smith", "email": "jane@company.com", "company": "Acme Ltd" }
@@ -128,30 +126,28 @@ Foreign key constraints are enforced with `PRAGMA foreign_keys = ON`.
 
 ## End-to-End Flow
 
-```
-1. Open http://localhost:3000
-2. Click "Send Email" on any campaign → enter a recipient email → Send
-3. Check the backend console for the Ethereal preview URL
-4. Open the URL → verify the email HTML and CTA link
-5. Click the CTA link (or go to /landing/:slug directly)
-6. Fill in the lead capture form → Submit
-7. Open /submissions → the new lead appears in the table
-8. Click "Download CSV" → file downloads with all submission data
-```
+1. Open <http://localhost:3000>.
+2. Click `Send Email` on any campaign and enter a recipient email.
+3. Check the backend console for the Ethereal preview URL.
+4. Open the preview URL and verify the email HTML and CTA link.
+5. Click the CTA link, or open `/landing/:slug` directly.
+6. Fill in the lead-capture form and submit it.
+7. Open `/submissions` and confirm the new lead appears in the table.
+8. Click `Download CSV` and confirm the file downloads with submission data.
 
 ---
 
 ## Project Structure
 
-```
+```text
 backend/
   src/
     index.ts          ← Express server, middleware, route mounting
     database.ts       ← SQLite setup, table creation, seed logic
     types.ts          ← Shared TypeScript interfaces
-    utils.ts          ← isValidEmail, isBlank, formatDate helpers
+    utils.ts          ← isValidEmail, isBlank, sanitise, escapeCsvField helpers
     routes/
-      campaigns.ts    ← GET /api/campaigns, GET /api/campaigns/:id
+      campaigns.ts    ← GET /api/campaigns, GET /api/campaigns/slug/:slug, GET /api/campaigns/:id
       landing.ts      ← POST /api/campaigns/:id/send, POST /api/landing/:slug/submit
       submissions.ts  ← GET /api/submissions, GET /api/submissions/export
     services/
@@ -192,8 +188,12 @@ frontend/
 
 - **Foreign key enforcement** — SQLite ignores foreign key constraints by default. `PRAGMA foreign_keys = ON` is set explicitly so referential integrity is always enforced.
 
-- **Reusable utilities** — `isValidEmail`, `isBlank`, and `formatDate` live in `utils.ts` and are shared across routes and services rather than duplicated.
+- **Reusable utilities** — `isValidEmail`, `isBlank`, `sanitise`, and `escapeCsvField` live in `utils.ts` and are shared across routes and services rather than duplicated.
 
 - **Vite proxy** — The frontend proxies `/api` requests to `localhost:3001`. No hardcoded backend URLs anywhere in the frontend code.
+
+- **Campaign data in one request** — `GET /api/campaigns` returns each campaign with its associated events. That avoids an N+1 fetch pattern on the homepage and keeps the landing page free to fetch one campaign by slug.
+
+- **CSV export safety** — Submission exports quote and escape every cell, preserve the exact `submitted_at` timestamp, and neutralise spreadsheet-style formulas before the file is downloaded.
 
 - **Conditional Navbar** — The Navbar is hidden on `/landing/*` routes. Landing pages are public-facing (opened by email recipients) and should not expose internal app navigation.
