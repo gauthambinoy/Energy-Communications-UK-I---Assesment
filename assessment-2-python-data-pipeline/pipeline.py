@@ -28,16 +28,17 @@ Assumptions & Judgement Calls:
       typically do not own company-wide marketing strategy.
     - Personal emails (gmail.com, yahoo.com, etc.) are set to empty string per
       the brief's rule: "empty string if only a personal email was found".
-    - When multiple marketing contacts exist for one company, seniority is ranked:
-      CMO (tier 1) > VP (tier 2) > Director (tier 3) > Head of (tier 4).
+    - When multiple marketing contacts exist for one company, broad company-wide
+      marketing ownership is preferred over narrower specialist leadership.
+      Final selection is deterministic: role score > corporate email present >
+      latest scrape date > alphabetical fallback.
 
 Confidence & Next Steps:
-    - High confidence for clear senior roles (CMO, VP, Director). Edge cases like
-      "Head of Marketing Automation" required judgement — included as a leadership
-      role over a marketing function.
-    - With more time: fuzzy matching (fuzzywuzzy) for company name deduplication,
-      email domain validation against known company domains, and unit tests for
-      each cleaning function.
+    - High confidence for clear senior roles (CMO, VP, Head of Marketing,
+      Marketing Director). Functional specialist roles are kept only when they
+      are the strongest senior marketing contact available for a company.
+    - With more time: company-domain validation for emails and broader fuzzy
+      matching for company-name variants across larger datasets.
 
 Usage:
     pip install -r requirements.txt
@@ -47,6 +48,20 @@ Usage:
 import pandas as pd
 import re
 import html
+
+
+RAW_INPUT_PATH = 'linkedin_raw_data.csv'
+OUTPUT_PATH = 'marketing_contacts_clean.csv'
+EXPECTED_OUTPUT_COLUMNS = [
+    'company_name', 'contact_name', 'job_title', 'email', 'linkedin_url'
+]
+ALLOWED_UPPERCASE_COMPANIES = {'AIB', 'CRH', 'SAP'}
+PERSONAL_EMAIL_DOMAINS = {
+    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+    'icloud.com', 'mail.com', 'protonmail.com', 'live.com',
+}
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+LINKEDIN_PROFILE_REGEX = re.compile(r'^https://linkedin\.com/in/[^/\s]+/?$')
 
 
 # =============================================================================
@@ -445,17 +460,6 @@ def validate_emails(df):
     Returns:
         DataFrame with validated emails (invalid ones set to empty string)
     """
-    # Standard email format: something@something.something
-    # This catches the vast majority of valid business emails.
-    EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-
-    # Personal email domains — if the email uses one of these, we treat it
-    # as "personal email only" and set to empty string per the brief.
-    PERSONAL_DOMAINS = [
-        'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
-        'icloud.com', 'mail.com', 'protonmail.com', 'live.com',
-    ]
-
     def clean_email(email):
         """Validate a single email value. Returns cleaned email or empty string."""
         # Handle missing values
@@ -465,12 +469,12 @@ def validate_emails(df):
         email = str(email).strip()
 
         # Check against email format — rejects "+353 87 123 4567" etc.
-        if not re.match(EMAIL_REGEX, email):
+        if not EMAIL_REGEX.match(email):
             return ''
 
         # Check if it's a personal email — rejects "aoifebrennan1985@gmail.com"
         domain = email.split('@')[1].lower()
-        if domain in PERSONAL_DOMAINS:
+        if domain in PERSONAL_EMAIL_DOMAINS:
             return ''
 
         # Valid corporate email — normalise to lowercase
@@ -601,69 +605,114 @@ def deduplicate(df):
 # =============================================================================
 
 
-# Seniority ranking: tier 1 is the most senior, tier 4 is the least senior
-# that still qualifies as a "primary marketing decision-maker".
-# Any title that does NOT match these tiers is excluded entirely.
-SENIORITY_TIERS = {
-    1: ['chief marketing officer', 'cmo'],
-    2: ['vp marketing', 'vp of marketing', 'vp brand & marketing',
-        'vp brand and marketing', 'vp, marketing & partnerships',
-        'vp, marketing and partnerships', 'vp marketing emea'],
-    3: ['marketing director', 'director of marketing',
-        'marketing & communications director',
-        'marketing and communications director',
-        'director of demand generation',
-        'director, marketing operations',
-        'digital & performance marketing director',
-        'digital and performance marketing director'],
-    4: ['head of marketing', 'head of growth & marketing',
-        'head of growth and marketing', 'head of brand',
-        'head of marketing & brand', 'head of marketing and brand',
-        'head of b2b marketing', 'head of digital marketing',
-        'head of content marketing', 'head of marketing automation',
-        'head of marketing & sustainability comms',
-        'head of marketing and sustainability comms'],
-}
+# The brief asks for the primary marketing decision-maker.
+# The title score below is intentionally more granular than the original
+# tier model so we can separate broad company-wide ownership from narrower
+# specialist leadership roles.
+ROLE_RULES = [
+    {'keyword': 'chief marketing officer', 'band': 'CMO', 'score': 100},
+    {'keyword': 'cmo', 'band': 'CMO', 'score': 100},
+    {'keyword': 'vp of marketing', 'band': 'VP', 'score': 95},
+    {'keyword': 'vp marketing emea', 'band': 'VP', 'score': 94},
+    {'keyword': 'vp marketing', 'band': 'VP', 'score': 93},
+    {'keyword': 'vp brand and marketing', 'band': 'VP', 'score': 92},
+    {'keyword': 'vp marketing and partnerships', 'band': 'VP', 'score': 90},
+    {'keyword': 'head of marketing and brand', 'band': 'Head', 'score': 86},
+    {'keyword': 'head of growth and marketing', 'band': 'Head', 'score': 85},
+    {
+        'keyword': 'head of marketing and sustainability comms',
+        'band': 'Head',
+        'score': 84,
+    },
+    {'keyword': 'head of marketing', 'band': 'Head', 'score': 83},
+    {
+        'keyword': 'marketing and communications director',
+        'band': 'Director',
+        'score': 82,
+    },
+    {'keyword': 'director of marketing', 'band': 'Director', 'score': 81},
+    {'keyword': 'marketing director', 'band': 'Director', 'score': 80},
+    {'keyword': 'head of b2b marketing', 'band': 'Functional Head', 'score': 78},
+    {'keyword': 'head of content marketing', 'band': 'Functional Head', 'score': 77},
+    {'keyword': 'head of digital marketing', 'band': 'Functional Head', 'score': 76},
+    {
+        'keyword': 'digital and performance marketing director',
+        'band': 'Functional Director',
+        'score': 75,
+    },
+    {
+        'keyword': 'director of demand generation',
+        'band': 'Functional Director',
+        'score': 74,
+    },
+    {
+        'keyword': 'director marketing operations',
+        'band': 'Functional Director',
+        'score': 73,
+    },
+    {
+        'keyword': 'head of marketing automation',
+        'band': 'Functional Head',
+        'score': 72,
+    },
+]
+
+
+def normalise_role_text(title):
+    """Normalise a job title so role matching is robust to punctuation variants."""
+    title = html.unescape(str(title)).lower().strip()
+    title = title.replace('&', ' and ')
+    title = re.sub(r'[^a-z0-9]+', ' ', title)
+    return re.sub(r'\s+', ' ', title).strip()
+
+
+def get_role_profile(title):
+    """Return the first matching role rule for a title, or None if not eligible."""
+    if not title or pd.isna(title):
+        return None
+
+    normalised_title = normalise_role_text(title)
+    for rule in ROLE_RULES:
+        if rule['keyword'] in normalised_title:
+            return rule
+
+    return None
 
 
 def classify_marketing_role(title):
     """
-    Classify a job title into a seniority tier.
+    Classify a job title into a broad marketing band.
 
-    Checks the title (case-insensitive) against the SENIORITY_TIERS dictionary.
-    Each tier contains a list of known senior marketing role keywords.
-    The function returns the tier number if matched, or None if the title is
-    not a recognised senior marketing role.
+    The band is used for reporting only. Selection uses the more granular
+    numeric role score returned by score_marketing_role().
 
     Args:
         title: cleaned job title string (from clean_headlines)
 
     Returns:
-        int (1-4) if the title is a senior marketing role, None otherwise.
-        Lower number = more senior (1 = CMO, 4 = Head of).
+        Role band string if the title is a recognised senior marketing role,
+        otherwise None.
     """
-    if not title or pd.isna(title):
+    profile = get_role_profile(title)
+    if not profile:
         return None
+    return profile['band']
 
-    title_lower = title.lower().strip()
 
-    # Check each tier from most senior (1) to least senior (4)
-    for tier, keywords in SENIORITY_TIERS.items():
-        for keyword in keywords:
-            if keyword in title_lower:
-                return tier
-
-    # No match — this is not a senior marketing role
-    # (could be Software Engineer, CFO, Marketing Manager, etc.)
-    return None
+def score_marketing_role(title):
+    """Return a numeric role score used to rank contacts within the same company."""
+    profile = get_role_profile(title)
+    if not profile:
+        return None
+    return profile['score']
 
 
 def filter_senior_marketing(df):
     """
     Keep only contacts who hold a senior marketing role.
 
-    Applies classify_marketing_role() to every row's job_title. Rows that
-    return None (not a senior marketing role) are removed.
+    Applies the role rules to every row's job_title. Rows that do not map to
+    a recognised senior marketing role are removed.
 
     This filters out:
         - Non-marketing roles (Software Engineer, CFO, CEO, HR, Sales)
@@ -674,39 +723,39 @@ def filter_senior_marketing(df):
         df: DataFrame after deduplication
 
     Returns:
-        DataFrame containing only senior marketing contacts, with a new
-        'seniority_tier' column (1=CMO through 4=Head of)
+        DataFrame containing only senior marketing contacts, with
+        'role_band' and 'role_score' columns for downstream selection.
     """
-    # Apply the classification to every job title
-    df['seniority_tier'] = df['job_title'].apply(classify_marketing_role)
+    df = df.copy()
+    df['role_band'] = df['job_title'].apply(classify_marketing_role)
+    df['role_score'] = df['job_title'].apply(score_marketing_role)
 
     before = len(df)
 
-    # Keep only rows where a seniority tier was assigned (i.e., senior marketing)
-    df = df[df['seniority_tier'].notna()].copy()
+    # Keep only rows that matched an eligible senior marketing role.
+    df = df[df['role_score'].notna()].copy()
 
     after = len(df)
 
     print(f"\n[filter_senior_marketing] Kept {after} senior marketing contacts "
           f"(removed {before - after} non-senior/non-marketing roles).")
-    print("  Remaining contacts by tier:")
-    for _, row in df.sort_values('seniority_tier').iterrows():
-        print(f"    Tier {int(row['seniority_tier'])}: {row['raw_name']:25s} — "
-              f"{row['job_title']} ({row['company_name']})")
+    print("  Remaining contacts by score:")
+    for _, row in df.sort_values(['role_score', 'company_name'], ascending=[False, True]).iterrows():
+        print(f"    {int(row['role_score']):>3} ({row['role_band']}): "
+              f"{row['raw_name']:25s} — {row['job_title']} ({row['company_name']})")
 
     return df
 
 
 def select_most_senior_per_company(df):
     """
-    For each company, keep only the most senior marketing contact.
+    For each company, keep only the primary marketing contact.
 
-    If a company has multiple marketing contacts (e.g., Flutter Entertainment
-    has both a CMO and a Head of Marketing), we keep the one with the lowest
-    seniority tier number (1 = most senior).
-
-    If two contacts share the same tier at the same company, the first one
-    encountered is kept (arbitrary but consistent).
+    Selection is deterministic and follows the brief's intent:
+        1. Highest role_score wins
+        2. If scores tie, prefer a row with a corporate email
+        3. If still tied, prefer the most recent scrape
+        4. Final fallback is alphabetical by contact name
 
     Args:
         df: DataFrame after filtering to senior marketing roles
@@ -714,12 +763,19 @@ def select_most_senior_per_company(df):
     Returns:
         DataFrame with exactly one row per company
     """
-    # Sort by seniority tier ascending — most senior (tier 1) comes first
-    df = df.sort_values('seniority_tier', ascending=True)
+    df = df.copy()
+    df['has_corporate_email'] = df['email'].fillna('').ne('')
+    df['scraped_at_dt'] = pd.to_datetime(df['scraped_at'], errors='coerce')
+
+    # Sort within each company so drop_duplicates keeps the strongest contact.
+    df = df.sort_values(
+        by=['company_name', 'role_score', 'has_corporate_email', 'scraped_at_dt', 'raw_name'],
+        ascending=[True, False, False, False, True],
+    )
 
     before = len(df)
 
-    # Keep the first row per company (the most senior one after sorting)
+    # Keep the first row per company after deterministic ranking.
     df = df.drop_duplicates(subset='company_name', keep='first')
 
     after = len(df)
@@ -729,9 +785,22 @@ def select_most_senior_per_company(df):
     print("  Final selection:")
     for _, row in df.sort_values('company_name').iterrows():
         print(f"    {row['company_name']:22s} → {row['raw_name']:25s} "
-              f"(Tier {int(row['seniority_tier'])}: {row['job_title']})")
+              f"(Score {int(row['role_score'])}: {row['job_title']})")
+
+    df = df.drop(columns=['has_corporate_email', 'scraped_at_dt'])
 
     return df
+
+
+def normalise_linkedin_url(url):
+    """Ensure a LinkedIn profile URL is either full-format or empty."""
+    if pd.isna(url) or str(url).strip() == '':
+        return ''
+
+    url = str(url).strip()
+    if not url.startswith('http'):
+        url = 'https://' + url
+    return url
 
 
 # =============================================================================
@@ -771,22 +840,6 @@ def format_output(df):
     Returns:
         Clean DataFrame with exactly 5 columns, sorted by company_name
     """
-
-    def normalise_url(url):
-        """
-        Ensure a LinkedIn URL starts with https:// or return empty string.
-
-        One row had "linkedin.com/in/roisindaly" (missing the https:// scheme).
-        Without the prefix the URL would not be clickable in Excel or a browser.
-        """
-        if pd.isna(url) or str(url).strip() == '':
-            return ''
-        url = str(url).strip()
-        # Add the scheme if it is missing
-        if not url.startswith('http'):
-            url = 'https://' + url
-        return url
-
     result = pd.DataFrame()
 
     # company_name — apply title case first, then fix known brand names
@@ -817,11 +870,111 @@ def format_output(df):
     result['email'] = df['email'].fillna('').astype(str)
 
     # linkedin_url — normalise to full https:// URL or empty string
-    result['linkedin_url'] = df['profile_url'].apply(normalise_url)
+    result['linkedin_url'] = df['profile_url'].apply(normalise_linkedin_url)
 
     # Sort alphabetically by company name for a clean, scannable output
     result = result.sort_values('company_name').reset_index(drop=True)
 
+    return result
+
+
+def is_reasonably_cased_name(value, allow_uppercase=False):
+    """Check that output names are readable and not obviously unformatted."""
+    if pd.isna(value):
+        return False
+
+    value = str(value).strip()
+    if value == '':
+        return False
+    if value.islower():
+        return False
+    if value.isupper() and not allow_uppercase:
+        return False
+    return True
+
+
+def is_valid_output_email(email):
+    """Output emails must be either empty or a valid non-personal address."""
+    if pd.isna(email) or str(email).strip() == '':
+        return True
+
+    email = str(email).strip().lower()
+    if not EMAIL_REGEX.match(email):
+        return False
+
+    domain = email.split('@')[1]
+    return domain not in PERSONAL_EMAIL_DOMAINS
+
+
+def validate_output(df):
+    """
+    Validate the final CSV contract before writing it to disk.
+
+    The goal is to fail fast if a future code change breaks any of the
+    assessment's explicit output requirements.
+    """
+    if list(df.columns) != EXPECTED_OUTPUT_COLUMNS:
+        raise ValueError(
+            'Final output columns do not match the required schema: '
+            f'{EXPECTED_OUTPUT_COLUMNS}'
+        )
+
+    if df.isnull().any().any():
+        raise ValueError('Final output contains NaN values. Use empty strings instead.')
+
+    if df['company_name'].duplicated().any():
+        duplicates = sorted(df.loc[df['company_name'].duplicated(), 'company_name'].unique())
+        raise ValueError(f'Final output contains duplicate companies: {duplicates}')
+
+    invalid_companies = [
+        value for value in df['company_name']
+        if not is_reasonably_cased_name(
+            value, allow_uppercase=value in ALLOWED_UPPERCASE_COMPANIES
+        )
+    ]
+    if invalid_companies:
+        raise ValueError(f'Final output contains badly cased company names: {invalid_companies}')
+
+    invalid_contacts = [
+        value for value in df['contact_name']
+        if not is_reasonably_cased_name(value)
+    ]
+    if invalid_contacts:
+        raise ValueError(f'Final output contains badly cased contact names: {invalid_contacts}')
+
+    if (df['job_title'].str.strip() == '').any():
+        raise ValueError('Final output contains empty job titles.')
+
+    invalid_emails = [email for email in df['email'] if not is_valid_output_email(email)]
+    if invalid_emails:
+        raise ValueError(f'Final output contains invalid emails: {invalid_emails}')
+
+    invalid_urls = [
+        url for url in df['linkedin_url']
+        if url != '' and not LINKEDIN_PROFILE_REGEX.match(url)
+    ]
+    if invalid_urls:
+        raise ValueError(f'Final output contains invalid LinkedIn URLs: {invalid_urls}')
+
+    expected_order = sorted(df['company_name'].tolist())
+    if df['company_name'].tolist() != expected_order:
+        raise ValueError('Final output is not sorted alphabetically by company_name.')
+
+
+def run_pipeline(input_path=RAW_INPUT_PATH):
+    """Run the full pipeline and return a validated output DataFrame."""
+    df = load_and_inspect(input_path)
+    df = remove_junk_rows(df)
+    df = clean_names(df)
+    df = clean_headlines(df)
+    df = standardise_companies(df)
+    df = validate_emails(df)
+    df = deduplicate(df)
+    df = filter_senior_marketing(df)
+    df = select_most_senior_per_company(df)
+
+    result = format_output(df)
+    validate_output(result)
     return result
 
 
@@ -840,39 +993,21 @@ def main():
     """
     Run the full LinkedIn data cleaning pipeline end to end.
 
-    Reads linkedin_raw_data.csv from the current directory and writes
-    marketing_contacts_clean.csv to the same directory.
+    Reads RAW_INPUT_PATH from the current directory and writes OUTPUT_PATH
+    to the same directory.
     """
     print("Starting LinkedIn data cleaning pipeline...\n")
 
-    # --- Part A: Load and clean ---
-    df = load_and_inspect('linkedin_raw_data.csv')
-    df = remove_junk_rows(df)
-    df = clean_names(df)
-    df = clean_headlines(df)
-    df = standardise_companies(df)
-    df = validate_emails(df)
-    df = deduplicate(df)
-
-    # --- Part B: Filter and select ---
-    df = filter_senior_marketing(df)
-    df = select_most_senior_per_company(df)
-
-    # --- Part C: Format and save ---
-    result = format_output(df)
-
-    output_path = 'marketing_contacts_clean.csv'
-    result.to_csv(output_path, index=False)
+    result = run_pipeline(RAW_INPUT_PATH)
+    result.to_csv(OUTPUT_PATH, index=False)
 
     # Print a final summary table so we can do a quick visual sanity check
     print(f"\n{'=' * 70}")
-    print(f"PIPELINE COMPLETE — {len(result)} companies written to {output_path}")
+    print(f"PIPELINE COMPLETE — {len(result)} companies written to {OUTPUT_PATH}")
     print(f"{'=' * 70}")
     print(result.to_string(index=False))
-    print(f"\nSaved: {output_path}")
+    print(f"\nSaved: {OUTPUT_PATH}")
 
 
 if __name__ == '__main__':
     main()
-
-    
