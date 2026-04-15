@@ -735,10 +735,117 @@ def select_most_senior_per_company(df):
 
 
 # =============================================================================
-# TEMPORARY TEST — will be replaced with the full pipeline later
+# PART C — Final Output Formatting
+# =============================================================================
+# The brief requires a CSV with exactly these 5 columns:
+#
+#   company_name   — properly cased, not all caps, not all lower
+#   contact_name   — properly cased
+#   job_title      — clean title (already done by clean_headlines)
+#   email          — corporate email or empty string (not NaN)
+#   linkedin_url   — full https:// URL or empty string
+#
+# Additional formatting rules:
+#   - All NaN values → empty string (interviewers must be able to open the
+#     CSV in Excel without seeing "NaN" in cells)
+#   - LinkedIn URLs must start with "https://" — one row had "linkedin.com/..."
+#     without the scheme, which would make the link unclickable
+#   - Sort alphabetically by company_name so the output is easy to scan
 # =============================================================================
 
-if __name__ == '__main__':
+
+def format_output(df):
+    """
+    Build the final output DataFrame with exactly the 5 required columns.
+
+    Formatting applied:
+        - company_name: title case, stripped whitespace
+        - contact_name: taken from cleaned raw_name (already title-cased)
+        - job_title: taken as-is from clean_headlines output
+        - email: empty string if missing or NaN
+        - linkedin_url: normalised to https:// prefix, empty string if missing
+
+    Args:
+        df: DataFrame after seniority selection (one row per company)
+
+    Returns:
+        Clean DataFrame with exactly 5 columns, sorted by company_name
+    """
+
+    def normalise_url(url):
+        """
+        Ensure a LinkedIn URL starts with https:// or return empty string.
+
+        One row had "linkedin.com/in/roisindaly" (missing the https:// scheme).
+        Without the prefix the URL would not be clickable in Excel or a browser.
+        """
+        if pd.isna(url) or str(url).strip() == '':
+            return ''
+        url = str(url).strip()
+        # Add the scheme if it is missing
+        if not url.startswith('http'):
+            url = 'https://' + url
+        return url
+
+    result = pd.DataFrame()
+
+    # company_name — apply title case first, then fix known brand names
+    # that have non-standard capitalisation (acronyms, camelCase brands).
+    # .str.title() would give us "Aib", "Crh", "Hubspot" etc. which are wrong.
+    result['company_name'] = df['company_name'].str.strip().str.title()
+
+    # Correct brand names that title case gets wrong
+    BRAND_NAME_FIXES = {
+        'Aib': 'AIB',
+        'Crh': 'CRH',
+        'Sap': 'SAP',
+        'Hubspot': 'HubSpot',
+        'Tiktok': 'TikTok',
+        'Linkedin': 'LinkedIn',
+        'Smurfit Kappa': 'Smurfit Kappa',   # already correct, kept for clarity
+        'Flutter Entertainment': 'Flutter Entertainment',
+    }
+    result['company_name'] = result['company_name'].replace(BRAND_NAME_FIXES)
+
+    # contact_name — already cleaned and title-cased in clean_names()
+    result['contact_name'] = df['raw_name'].str.strip()
+
+    # job_title — already extracted in clean_headlines()
+    result['job_title'] = df['job_title'].str.strip()
+
+    # email — replace NaN with empty string so the CSV has "" not "NaN"
+    result['email'] = df['email'].fillna('').astype(str)
+
+    # linkedin_url — normalise to full https:// URL or empty string
+    result['linkedin_url'] = df['profile_url'].apply(normalise_url)
+
+    # Sort alphabetically by company name for a clean, scannable output
+    result = result.sort_values('company_name').reset_index(drop=True)
+
+    return result
+
+
+# =============================================================================
+# MAIN — Full pipeline entry point
+# =============================================================================
+# Orchestrates the entire pipeline in order:
+#   Part A: Load → Remove junk → Clean names → Extract titles →
+#           Standardise companies → Validate emails → Deduplicate
+#   Part B: Filter senior marketing roles → Select one per company
+#   Part C: Format output → Save CSV
+# =============================================================================
+
+
+def main():
+    """
+    Run the full LinkedIn data cleaning pipeline end to end.
+
+    Reads linkedin_raw_data.csv from the current directory and writes
+    marketing_contacts_clean.csv to the same directory.
+    """
+    print("Starting LinkedIn data cleaning pipeline...\n")
+
+    # --- Part A: Load and clean ---
     df = load_and_inspect('linkedin_raw_data.csv')
     df = remove_junk_rows(df)
     df = clean_names(df)
@@ -746,11 +853,26 @@ if __name__ == '__main__':
     df = standardise_companies(df)
     df = validate_emails(df)
     df = deduplicate(df)
+
+    # --- Part B: Filter and select ---
     df = filter_senior_marketing(df)
     df = select_most_senior_per_company(df)
 
-    print(f"\n{'=' * 60}")
-    print(f"FINAL: {len(df)} companies, one senior marketing contact each")
-    print(f"{'=' * 60}")
+    # --- Part C: Format and save ---
+    result = format_output(df)
+
+    output_path = 'marketing_contacts_clean.csv'
+    result.to_csv(output_path, index=False)
+
+    # Print a final summary table so we can do a quick visual sanity check
+    print(f"\n{'=' * 70}")
+    print(f"PIPELINE COMPLETE — {len(result)} companies written to {output_path}")
+    print(f"{'=' * 70}")
+    print(result.to_string(index=False))
+    print(f"\nSaved: {output_path}")
+
+
+if __name__ == '__main__':
+    main()
 
     
