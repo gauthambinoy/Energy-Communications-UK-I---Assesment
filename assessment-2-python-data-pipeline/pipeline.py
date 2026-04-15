@@ -117,18 +117,23 @@ def remove_junk_rows(df):
     """
     original_count = len(df)
 
-    # --- 1. Remove rows with fake/missing names ---
-    # The CSV contains "N/A" (row 21) and "-" (row 47) as names.
+    # --- 1. Remove rows where name is completely missing (NaN) ---
+    # pandas automatically converts "N/A" in CSV to NaN when reading.
+    # Row 21 had raw_name = "N/A" which became NaN. Drop these first.
+    df = df[df['raw_name'].notna()]
+
+    # --- 2. Remove rows with fake/placeholder names ---
+    # The CSV contains "-" (row 47) as a name and possibly empty strings.
     # These are not real people — just placeholder entries from the scraper.
-    junk_names = ['n/a', '-', '']
+    junk_names = ['-', '']
     df = df[~df['raw_name'].str.strip().str.lower().isin(junk_names)]
 
-    # --- 2. Remove LinkedIn Ads placement ---
+    # --- 3. Remove LinkedIn Ads placement ---
     # Row 52 has raw_name = "This is a LinkedIn Ads placement".
     # This is an advertisement that the scraping tool mistakenly captured.
     df = df[~df['raw_name'].str.contains('LinkedIn Ads', case=False, na=False)]
 
-    # --- 3. Remove any row with a "Sponsored Content" headline ---
+    # --- 4. Remove any row with a "Sponsored Content" headline ---
     # Safety net: catches ad rows even if the name field looks normal.
     df = df[~df['headline'].str.contains('Sponsored Content', case=False, na=False)]
 
@@ -337,6 +342,8 @@ if __name__ == '__main__':
     print("CLEANED NAMES + EXTRACTED TITLES")
     print("=" * 60)
     for _, row in df.iterrows():
-        print(f"  {row['raw_name']:30s} | {row['job_title']}")
+        name = str(row['raw_name']) if pd.notna(row['raw_name']) else '???'
+        title = str(row['job_title']) if pd.notna(row['job_title']) else '???'
+        print(f"  {name:30s} | {title}")
 
     
