@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react';
 import { EmailLog } from '../types';
+import API_BASE from '../api';
 
 // Formats a stored ISO timestamp as a human-readable relative label.
 // e.g. "2 minutes ago", "3 hours ago", "yesterday"
@@ -46,7 +47,7 @@ function EmailLogPage() {
     async function fetchLogs(): Promise<void> {
         try {
             setLoading(true);
-            const response = await fetch('/api/email-logs');
+            const response = await fetch(`${API_BASE}/api/email-logs`);
             if (!response.ok) throw new Error('Failed to fetch email logs');
             const data: EmailLog[] = await response.json();
             setLogs(data);

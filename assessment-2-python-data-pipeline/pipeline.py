@@ -136,16 +136,207 @@ def remove_junk_rows(df):
     print(f"\n[remove_junk_rows] Removed {removed} junk rows. {len(df)} rows remaining.")
     return df
 
-    # =============================================================================
-# TEMPORARY TEST — remove later as we add more functions
+
+# =============================================================================
+# PART A.2 — Name Cleaning
+# =============================================================================
+# The raw_name column has several issues that need to be resolved:
+#   - Excess whitespace: "Sarah   Murphy" should be "Sarah Murphy"
+#   - ALL CAPS: "JAMES O'BRIEN" should be "James O'Brien"
+#   - Mixed case: "ROisIN DALY" should be "Roisin Daly"
+#   - Title prefixes: "Dr. Conor Walsh" should be "Conor Walsh"
+#
+# The cleaning order matters:
+#   1. Strip outer whitespace first (so regex anchors work correctly)
+#   2. Remove title prefixes (before collapsing spaces, so "Dr. " doesn't
+#      leave a leading space)
+#   3. Collapse internal whitespace (after prefix removal)
+#   4. Apply title case last (operates on the fully cleaned string)
+# =============================================================================
+
+
+def clean_names(df):
+    """
+    Clean the raw_name column: strip whitespace, remove titles, fix casing.
+
+    Cleaning steps (in order):
+        1. Strip leading and trailing whitespace from each name
+        2. Remove honorific prefixes (Dr., Mr., Mrs., Ms., Prof.)
+           — e.g. "Dr. Conor Walsh" becomes "Conor Walsh"
+        3. Collapse multiple internal spaces into a single space
+           — e.g. "Sarah   Murphy" becomes "Sarah Murphy"
+        4. Convert to title case for consistent formatting
+           — e.g. "JAMES O'BRIEN" becomes "James O'Brien"
+           — e.g. "ROisIN DALY" becomes "Roisin Daly"
+
+    Args:
+        df: DataFrame after junk row removal
+
+    Returns:
+        DataFrame with cleaned names in the raw_name column
+    """
+    # --- Step 1: Strip outer whitespace ---
+    # Some names have leading/trailing spaces from the scraping tool.
+    df['raw_name'] = df['raw_name'].str.strip()
+
+    # --- Step 2: Remove title prefixes ---
+    # "Dr. Conor Walsh" → "Conor Walsh"
+    # The regex matches: start of string (^), then Dr/Mr/Mrs/Ms/Prof,
+    # optionally followed by a period (\.?), then any trailing spaces (\s*).
+    # This removes the title and any space after it in one pass.
+    df['raw_name'] = df['raw_name'].str.replace(
+        r'^(Dr|Mr|Mrs|Ms|Prof)\.?\s*', '', regex=True
+    )
+
+    # --- Step 3: Collapse multiple spaces into one ---
+    # "Sarah   Murphy" → "Sarah Murphy"
+    # "CLAIRE  O'SULLIVAN" → "CLAIRE O'SULLIVAN"
+    # \s+ matches one or more whitespace characters (spaces, tabs, etc.)
+    df['raw_name'] = df['raw_name'].str.replace(r'\s+', ' ', regex=True)
+
+    # --- Step 4: Apply title case ---
+    # "JAMES O'BRIEN" → "James O'Brien"
+    # "ROisIN DALY" → "Roisin Daly"
+    # Python's .title() capitalises the first letter of each word,
+    # which correctly handles Irish names like O'Brien (the B stays capital
+    # because the apostrophe acts as a word boundary).
+    df['raw_name'] = df['raw_name'].str.title()
+
+    # --- Step 5: Final strip as a safety net ---
+    df['raw_name'] = df['raw_name'].str.strip()
+
+    print(f"\n[clean_names] Names cleaned. Sample:")
+    for name in df['raw_name'].head(10).tolist():
+        print(f"  {name}")
+
+    return df
+
+
+# =============================================================================
+# PART A.3 — Headline / Job Title Extraction
+# =============================================================================
+# LinkedIn headlines are NOT clean job titles. They contain a mix of:
+#   - Job title + company: "Head of Marketing at Accenture Ireland"
+#   - Job title + skills: "VP Marketing | B2B SaaS | Demand Generation"
+#   - Job title + company via dash: "Marketing Director - Salesforce EMEA"
+#   - HTML entities: "Marketing &amp; Communications Director"
+#   - Pronoun tags: "Marketing Director (she/her)"
+#
+# Strategy: decode HTML first, then peel off noise layer by layer.
+# We split on common separators (" at ", " - ", " | ") and keep only the
+# first segment — which is almost always the actual job title.
+#
+# Important: "Director, Marketing Operations" uses a comma as part of the
+# title itself, so we must NOT split on commas.
+# =============================================================================
+
+
+def clean_headlines(df):
+    """
+    Extract a clean job title from the messy headline field.
+
+    The headline column contains raw LinkedIn headlines that mix job titles
+    with company names, skill lists, pronouns, and HTML artefacts. This
+    function extracts just the job title portion.
+
+    Processing order:
+        1. Decode HTML entities ("&amp;" → "&")
+        2. Remove pronoun tags like "(she/her)"
+        3. Split on " at " to remove company names
+        4. Split on " - " to remove company/region suffixes
+        5. Split on " | " to remove skill lists and buzzwords
+
+    Args:
+        df: DataFrame after name cleaning
+
+    Returns:
+        DataFrame with a new 'job_title' column containing clean titles
+    """
+
+    def extract_title(headline):
+        """
+        Process a single headline string and return just the job title.
+
+        Args:
+            headline: raw headline string from LinkedIn (may contain HTML,
+                      company names, skill tags, pronoun labels, etc.)
+
+        Returns:
+            Cleaned job title string, or empty string if headline is missing
+        """
+        # Handle missing headlines gracefully
+        if pd.isna(headline):
+            return ''
+
+        # --- Step 1: Decode HTML entities ---
+        # The scraper captured "&amp;" instead of "&" because LinkedIn's
+        # HTML source uses encoded entities.
+        # "Marketing &amp; Communications Director" → "Marketing & Communications Director"
+        title = html.unescape(headline)
+
+        # --- Step 2: Remove pronoun labels ---
+        # Some people add "(she/her)", "(he/him)", or "(they/them)" to their
+        # headline. These are not part of the job title.
+        # "Marketing Director (she/her)" → "Marketing Director"
+        title = re.sub(
+            r'\(she/her\)|\(he/him\)|\(they/them\)',
+            '', title, flags=re.IGNORECASE
+        )
+
+        # --- Step 3: Split on " at " → remove company name ---
+        # "Head of Marketing at Accenture Ireland" → "Head of Marketing"
+        # "VP of Marketing at LinkedIn" → "VP of Marketing"
+        # We take the FIRST part (everything before " at ").
+        if ' at ' in title:
+            title = title.split(' at ')[0]
+
+        # --- Step 4: Split on " - " → remove company/region suffix ---
+        # "Marketing Director - Salesforce EMEA" → "Marketing Director"
+        # "Head of Marketing - EMEA" → "Head of Marketing"
+        # "Head of Marketing - Primark" → "Head of Marketing"
+        if ' - ' in title:
+            title = title.split(' - ')[0]
+
+        # --- Step 5: Split on " | " → remove skill lists ---
+        # "VP Marketing | B2B SaaS | Demand Gen | HubSpot" → "VP Marketing"
+        # "Head of Content Marketing | B2B | SaaS" → "Head of Content Marketing"
+        # "Digital Marketing Manager | SEO | PPC | Content" → "Digital Marketing Manager"
+        if ' | ' in title:
+            title = title.split(' | ')[0]
+
+        # Final cleanup: strip any leftover whitespace
+        title = title.strip()
+
+        return title
+
+    # Apply the extraction function to every row in the headline column.
+    # The result goes into a new column called 'job_title'.
+    df['job_title'] = df['headline'].apply(extract_title)
+
+    # Print a before/after comparison so we can visually verify the extraction
+    print(f"\n[clean_headlines] Job titles extracted. Before → After:")
+    for _, row in df.head(15).iterrows():
+        print(f"  '{row['headline']}'")
+        print(f"      → '{row['job_title']}'")
+
+    return df
+
+
+# =============================================================================
+# TEMPORARY TEST — will be replaced with the full pipeline later
 # =============================================================================
 
 if __name__ == '__main__':
     df = load_and_inspect('linkedin_raw_data.csv')
     df = remove_junk_rows(df)
+    df = clean_names(df)
+    df = clean_headlines(df)
 
-    print("\nRemaining contacts:")
-    for name in df['raw_name'].tolist():
-        print(f"  {name}")
+    # Verify: print cleaned name + extracted job title side by side
+    print("\n" + "=" * 60)
+    print("CLEANED NAMES + EXTRACTED TITLES")
+    print("=" * 60)
+    for _, row in df.iterrows():
+        print(f"  {row['raw_name']:30s} | {row['job_title']}")
 
     

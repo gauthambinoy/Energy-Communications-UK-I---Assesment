@@ -30,14 +30,22 @@ const emailRateLimit = rateLimit({
 });
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
+
+// ── CORS ───────────────────────────────────────────────────────
+// In development the Vite proxy handles CORS so any origin is fine.
+// In production (Render) we restrict to the actual Vercel frontend URL
+// via the ALLOWED_ORIGIN environment variable so no other origin can
+// call the API from a browser.
+const allowedOrigin = process.env.ALLOWED_ORIGIN ?? '*';
+
+app.use(cors({
+    origin: allowedOrigin,
+    methods: ['GET', 'POST'],
+}));
 
 // ── Middleware ─────────────────────────────────────────────────
 // Middleware runs on EVERY request before it reaches your routes.
-
-// cors() allows the frontend (port 3000) to talk to the backend (port 3001)
-// Without this, the browser blocks cross-origin requests for security
-app.use(cors());
 
 // express.json() parses incoming JSON request bodies
 // Without this, req.body would be undefined when the frontend sends data

@@ -13,6 +13,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Campaign } from '../types';
+import API_BASE from '../api';
 
 function LandingPage() {
     // Extract the slug from the URL (e.g. "summer-brand-awareness")
@@ -53,7 +54,7 @@ function LandingPage() {
             setLoading(true);
 
             // Fetch all campaigns and find the one matching our slug
-            const response = await fetch('/api/campaigns');
+            const response = await fetch(`${API_BASE}/api/campaigns`);
 
             if (!response.ok) {
                 throw new Error('Failed to load campaign');
@@ -100,7 +101,7 @@ function LandingPage() {
         try {
             setSubmitting(true);
 
-            const response = await fetch(`/api/landing/${slug}/submit`, {
+            const response = await fetch(`${API_BASE}/api/landing/${slug}/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ firstName, lastName, email, company }),
