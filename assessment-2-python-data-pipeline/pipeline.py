@@ -571,6 +571,170 @@ def deduplicate(df):
 
 
 # =============================================================================
+# PART B — Filtering & Role Classification
+# =============================================================================
+# At this point we have 51 clean, deduplicated contacts. But many are NOT
+# senior marketing people. We need to:
+#
+#   1. Remove anyone who is clearly not in marketing:
+#      - Mike Johnson → Software Engineer (tech role)
+#      - Brendan Hayes → Chief Financial Officer (finance role)
+#      - Declan Moore → CTO (tech role)
+#      - Niall Sweeney → Chief Executive Officer (general management)
+#      - Amy Walsh → Talent Acquisition Specialist (HR role)
+#      - Rachel Murphy → HR Business Partner (HR role)
+#      - Barry Connolly → Sales Director (sales, not marketing)
+#
+#   2. Remove marketing people who are not senior enough:
+#      - The brief asks for "the primary marketing decision-maker" — CMO,
+#        VP Marketing, Head of Marketing, Marketing Director, or equivalent.
+#      - Manager-level roles (Marketing Manager, Brand Manager) are excluded
+#        because they typically report to someone more senior.
+#
+#   3. Pick ONE person per company — the most senior marketing contact.
+#
+# Seniority tiers (1 = highest, 4 = lowest that still qualifies):
+#   Tier 1: CMO / Chief Marketing Officer — the top marketing executive
+#   Tier 2: VP Marketing / VP of Marketing — senior leadership level
+#   Tier 3: Marketing Director / Director of Marketing — mid-senior
+#   Tier 4: Head of Marketing / Head of Growth & Marketing — functional lead
+# =============================================================================
+
+
+# Seniority ranking: tier 1 is the most senior, tier 4 is the least senior
+# that still qualifies as a "primary marketing decision-maker".
+# Any title that does NOT match these tiers is excluded entirely.
+SENIORITY_TIERS = {
+    1: ['chief marketing officer', 'cmo'],
+    2: ['vp marketing', 'vp of marketing', 'vp brand & marketing',
+        'vp brand and marketing', 'vp, marketing & partnerships',
+        'vp, marketing and partnerships', 'vp marketing emea'],
+    3: ['marketing director', 'director of marketing',
+        'marketing & communications director',
+        'marketing and communications director',
+        'director of demand generation',
+        'director, marketing operations',
+        'digital & performance marketing director',
+        'digital and performance marketing director'],
+    4: ['head of marketing', 'head of growth & marketing',
+        'head of growth and marketing', 'head of brand',
+        'head of marketing & brand', 'head of marketing and brand',
+        'head of b2b marketing', 'head of digital marketing',
+        'head of content marketing', 'head of marketing automation',
+        'head of marketing & sustainability comms',
+        'head of marketing and sustainability comms'],
+}
+
+
+def classify_marketing_role(title):
+    """
+    Classify a job title into a seniority tier.
+
+    Checks the title (case-insensitive) against the SENIORITY_TIERS dictionary.
+    Each tier contains a list of known senior marketing role keywords.
+    The function returns the tier number if matched, or None if the title is
+    not a recognised senior marketing role.
+
+    Args:
+        title: cleaned job title string (from clean_headlines)
+
+    Returns:
+        int (1-4) if the title is a senior marketing role, None otherwise.
+        Lower number = more senior (1 = CMO, 4 = Head of).
+    """
+    if not title or pd.isna(title):
+        return None
+
+    title_lower = title.lower().strip()
+
+    # Check each tier from most senior (1) to least senior (4)
+    for tier, keywords in SENIORITY_TIERS.items():
+        for keyword in keywords:
+            if keyword in title_lower:
+                return tier
+
+    # No match — this is not a senior marketing role
+    # (could be Software Engineer, CFO, Marketing Manager, etc.)
+    return None
+
+
+def filter_senior_marketing(df):
+    """
+    Keep only contacts who hold a senior marketing role.
+
+    Applies classify_marketing_role() to every row's job_title. Rows that
+    return None (not a senior marketing role) are removed.
+
+    This filters out:
+        - Non-marketing roles (Software Engineer, CFO, CEO, HR, Sales)
+        - Junior marketing roles (Marketing Manager, Marketing Coordinator)
+        - Marketing-adjacent but not decision-maker roles (Marketing Lead)
+
+    Args:
+        df: DataFrame after deduplication
+
+    Returns:
+        DataFrame containing only senior marketing contacts, with a new
+        'seniority_tier' column (1=CMO through 4=Head of)
+    """
+    # Apply the classification to every job title
+    df['seniority_tier'] = df['job_title'].apply(classify_marketing_role)
+
+    before = len(df)
+
+    # Keep only rows where a seniority tier was assigned (i.e., senior marketing)
+    df = df[df['seniority_tier'].notna()].copy()
+
+    after = len(df)
+
+    print(f"\n[filter_senior_marketing] Kept {after} senior marketing contacts "
+          f"(removed {before - after} non-senior/non-marketing roles).")
+    print("  Remaining contacts by tier:")
+    for _, row in df.sort_values('seniority_tier').iterrows():
+        print(f"    Tier {int(row['seniority_tier'])}: {row['raw_name']:25s} — "
+              f"{row['job_title']} ({row['company_name']})")
+
+    return df
+
+
+def select_most_senior_per_company(df):
+    """
+    For each company, keep only the most senior marketing contact.
+
+    If a company has multiple marketing contacts (e.g., Flutter Entertainment
+    has both a CMO and a Head of Marketing), we keep the one with the lowest
+    seniority tier number (1 = most senior).
+
+    If two contacts share the same tier at the same company, the first one
+    encountered is kept (arbitrary but consistent).
+
+    Args:
+        df: DataFrame after filtering to senior marketing roles
+
+    Returns:
+        DataFrame with exactly one row per company
+    """
+    # Sort by seniority tier ascending — most senior (tier 1) comes first
+    df = df.sort_values('seniority_tier', ascending=True)
+
+    before = len(df)
+
+    # Keep the first row per company (the most senior one after sorting)
+    df = df.drop_duplicates(subset='company_name', keep='first')
+
+    after = len(df)
+
+    print(f"\n[select_most_senior_per_company] Selected {after} contacts "
+          f"(1 per company, removed {before - after} less-senior duplicates).")
+    print("  Final selection:")
+    for _, row in df.sort_values('company_name').iterrows():
+        print(f"    {row['company_name']:22s} → {row['raw_name']:25s} "
+              f"(Tier {int(row['seniority_tier'])}: {row['job_title']})")
+
+    return df
+
+
+# =============================================================================
 # TEMPORARY TEST — will be replaced with the full pipeline later
 # =============================================================================
 
@@ -582,16 +746,11 @@ if __name__ == '__main__':
     df = standardise_companies(df)
     df = validate_emails(df)
     df = deduplicate(df)
+    df = filter_senior_marketing(df)
+    df = select_most_senior_per_company(df)
 
-    # Verify: print name, company, title, email for every remaining row
-    print("\n" + "=" * 60)
-    print("AFTER FULL CLEANING + DEDUP")
-    print("=" * 60)
-    for _, row in df.iterrows():
-        name = str(row['raw_name'])
-        company = str(row['company_name'])
-        title = str(row['job_title'])
-        email = str(row['email']) if row['email'] else '(none)'
-        print(f"  {name:25s} | {company:22s} | {title:40s} | {email}")
+    print(f"\n{'=' * 60}")
+    print(f"FINAL: {len(df)} companies, one senior marketing contact each")
+    print(f"{'=' * 60}")
 
     
